@@ -272,7 +272,7 @@ const game = {
     dayTime: 0, // 0-60 день, 60-90 закат, 90-150 ночь, 150-180 рассвет, потом сброс
     isNight: false,
     eventTimer: 0,
-    eventInterval: 60,
+    eventInterval: 100,
     currentEvent: null,
     toolBreakTimer: 0,   // секунды замедления из-за поломки инструмента
     // --- экономика и время ---
@@ -1138,13 +1138,16 @@ function updateForeman(delta, now) {
 function foremanInspect() {
     const bay = foremanState.checkBay;
     if (bay && bay.order) {
-        // проверка бокса: иногда премия (быстро работают), иногда штраф (халтура)
+        const lvl = serviceLevel();
+        // проверка бокса: на старте брак ловится редко (10%), у топа чаще (35%); премии наоборот
+        const fineChance = 0.10 + lvl * 0.25;
+        const bonusChance = 0.35 - lvl * 0.15;
         const roll = Math.random();
-        if (roll < 0.25) {
-            const fine = 30 + Math.floor(Math.random() * 40);
+        if (roll < fineChance) {
+            const fine = scaledPenalty(40);
             game.money -= fine;
             toast(`📋 Шнырь: брак в боксе! Штраф −${fine}💰`, '#f85149');
-        } else if (roll > 0.8) {
+        } else if (roll > 1 - bonusChance) {
             const bonus = 25 + Math.floor(Math.random() * 35);
             game.money += bonus;
             toast(`📋 Шнырь: отличная работа! Премия +${bonus}💰`, '#3fb950');
@@ -1508,8 +1511,8 @@ function checkHiddenDefect(order) {
     if (order.diagChecked) return;
     order.diagChecked = true;
     if (order.contract) return; // контракт фиксированный, без сюрпризов
-    // шанс скрытого дефекта растёт со сложностью основной работы
-    const chance = 0.18 + (order.mainWork.difficulty || 1) * 0.04;
+    // шанс скрытого дефекта: на старте низкий, растёт со сложностью и уровнем сервиса
+    const chance = (0.06 + (order.mainWork.difficulty || 1) * 0.03) + serviceLevel() * 0.2;
     if (Math.random() < chance) {
         // подбираем доп. дефект (любая работа не сложнее основной + небольшой запас)
         const cap = (order.mainWork.difficulty || 1) + 1;
@@ -1531,8 +1534,9 @@ function checkHiddenDefect(order) {
 
 // Очередь ожидающих машин — колонна на боковой дороге, уходящей вправо. Полный размер.
 const QUEUE_SCALE = 1;            // машины в очереди — в полный размер (как в боксе)
-const QUEUE_X0 = 2.6;             // первая машина (ближе к центральной дороге)
+const QUEUE_X0 = 5.2;             // первая машина — дальше от перекрёстка (выезд не задевает очередь)
 const QUEUE_DX = 4.4;             // шаг между машинами вдоль боковой дороги (длина ~4)
+const MAX_QUEUE = 5;              // жёсткий потолок очереди (помещается на дороге)
 function queueSlot(i) {
     return { x: QUEUE_X0 + i * QUEUE_DX, z: QROAD_Z };
 }
@@ -2216,7 +2220,7 @@ function addReceptionistExp(amount) {
         r.level++;
         r.expToNext = Math.floor(r.expToNext * 1.5);
         r.skillPoints++;
-        game.maxOrders = 3 + r.level;
+        game.maxOrders = Math.min(MAX_QUEUE, 3 + r.level);
         toast('👨‍💼 Приёмщик повысил уровень! +1 очко навыка', '#58a6ff');
         sfxDing();
         if (r.level >= RECEPTIONIST_MAX_LEVEL) { r.exp = 0; toast('🏆 Приёмщик достиг максимального уровня 10!', '#f1c40f', 5000); break; }
@@ -2285,14 +2289,18 @@ function restaffWaitingBays() {
 // ==================== КОРПОРАТИВНЫЕ КОНТРАКТЫ ====================
 function generateContractOffer() {
     if (game.reputation < 30) return;
+    const lvl = serviceLevel();
     // контракт — конкретная работа, которую надо успеть сделать в боксе до дедлайна
     const pool = workTypes.filter(w => w.difficulty <= 5);
     const work = pool[Math.floor(Math.random() * pool.length)];
     const reward = Math.floor(work.baseMoney * 2.4 * (1 + game.reputation / 100));
-    const penalty = Math.floor(reward * 0.5); // штраф за срыв — половина награды
-    const deadline = Math.ceil(work.baseTime * 2.2 + 20); // времени в обрез
+    // штраф за срыв: 15% от награды на старте → 50% у топ-сервиса
+    const penalty = Math.floor(reward * (0.15 + lvl * 0.35));
+    // дедлайн: щедрый на старте (×3 + запас), жёстче с ростом уровня
+    const deadline = Math.ceil(work.baseTime * (3.2 - lvl * 1.1) + 25 - lvl * 8);
+    const repLoss = Math.round(4 + lvl * 8); // потеря репутации за срыв: 4 → 12
     const company = companies[Math.floor(Math.random() * companies.length)];
-    game.contractOffer = { id: Date.now(), companyName: company, work, reward, penalty, deadline, timeLeft: 25 };
+    game.contractOffer = { id: Date.now(), companyName: company, work, reward, penalty, deadline, repLoss, timeLeft: 25 };
     showContractOffer();
 }
 
@@ -2305,7 +2313,7 @@ function showContractOffer() {
         <h2 style="color:#f78166;">🏢 Контракт от ${c.companyName}</h2>
         <p style="color:#c9d1d9;">${c.work.icon} ${c.work.name}</p>
         <p style="color:#d2991d;font-size:1.2em;">💰 ${c.reward}</p>
-        <p style="color:#f85149;">⚠️ Штраф за срыв: ${c.penalty}💰 и −10 репутации</p>
+        <p style="color:#f85149;">⚠️ Штраф за срыв: ${c.penalty}💰 и −${c.repLoss} репутации</p>
         <p style="color:#8b949e;">⏱ Успеть за ${c.deadline} сек после загона в бокс. Решение: ${Math.floor(c.timeLeft)} сек</p>
         <button class="btn-3d green" id="acceptContractBtn" style="margin:4px;">✅ Принять</button>
         <button class="btn-3d" id="declineContractBtn" style="margin:4px;">❌ Отказать</button>`;
@@ -2375,33 +2383,57 @@ function processContracts(delta) {
 
 // Срыв контракта: штраф, минус репутация, машина уезжает
 function failContract(bay, order) {
+    const repLoss = order.repLoss || 10;
     game.money -= order.penalty;
-    game.reputation = Math.max(0, game.reputation - 10);
+    game.reputation = Math.max(0, game.reputation - repLoss);
     sfxError();
-    toast(`❌ Контракт «${order.companyName}» сорван! −${order.penalty}💰 и −10 репутации`, '#f85149');
+    toast(`❌ Контракт «${order.companyName}» сорван! −${order.penalty}💰 и −${repLoss} репутации`, '#f85149');
     if (order.truckMesh) driveOutThroughGate(order.truckMesh);
     if (bay.progressBar) bay.progressBar.visible = false;
     bay.order = null;
     hideBayMechanics(bay);
     clearBayProps(bay);
     restaffWaitingBays();
-    if (game.money < 0) { /* уйдёт в долг — общий механизм банкротства разрулит в конце дня */ }
     updateUI();
 }
 
+// ==================== ПРОГРЕССИЯ СЛОЖНОСТИ ====================
+// 0.0 на старте (маленький гараж, низкая репутация) → ~1.0 у развитого сервиса.
+// Чем круче сервис, тем серьёзнее события и штрафы; новичка система не душит.
+function serviceLevel() {
+    const repPart = Math.min(1, game.reputation / 100);      // 0..1 по репутации
+    const garagePart = (game.garageLevel - 1) / 3;           // 0..1 по уровню гаража (1→4)
+    const dayPart = Math.min(1, game.dayCount / 30);         // 0..1 за первый месяц
+    return Math.min(1, repPart * 0.5 + garagePart * 0.35 + dayPart * 0.15);
+}
+// Множитель штрафов: на старте ~0.25 (мягко), у топ-сервиса ~1.6 (жёстко)
+function penaltyScale() { return 0.25 + serviceLevel() * 1.35; }
+// Базовый штраф, отмасштабированный под уровень сервиса
+function scaledPenalty(base) { return Math.round(base * penaltyScale()); }
+
 // ==================== СОБЫТИЯ ====================
 function generateRandomEvent() {
-    const events = [
-        { title: '🚨 Срочный ремонт!', desc: 'Крупный клиент предлагает тройную оплату за срочный ремонт. Берёшься?', reward: 700 + game.garageLevel*260, action: 'acceptUrgent' },
-        { title: '🔍 Проверка надзора', desc: 'Серьёзная инспекция! Крупный штраф или рискнуть репутацией?', penalty: 500 + game.dayCount*35, action: 'acceptFine' },
-        { title: '💡 Авария электросети', desc: 'Выгорела проводка во всех боксах. Дорогостоящее восстановление — платить?', penalty: 650, action: 'acceptRepairCost' },
-        { title: '🛠️ Серьёзная поломка', desc: 'Вышло из строя дорогое оборудование. Чинить за деньги или надолго работать медленнее?', penalty: 800, action: 'acceptToolBreak' },
-        { title: '👷 Бунт бригады', desc: 'Механики требуют существенную прибавку, иначе уволятся. Доплатить?', penalty: 600, action: 'acceptRaise' },
-        { title: '🌟 VIP-клиент', desc: 'Очень доволен сервисом и оставил крупные чаевые!', reward: 450 + game.reputation*9, action: 'acceptTip' },
+    const lvl = serviceLevel();
+    // Шанс негативного события растёт с уровнем сервиса: на старте почти всегда выгодные
+    const negChance = 0.15 + lvl * 0.5; // 15% в начале → 65% у топа
+    const positives = [
+        { title: '🚨 Срочный ремонт!', desc: 'Клиент предлагает повышенную оплату за срочный ремонт. Берёшься?', reward: Math.round((250 + game.garageLevel*180) * (0.8 + lvl)), action: 'acceptUrgent' },
+        { title: '🌟 Довольный клиент', desc: 'Клиент доволен сервисом и оставил чаевые!', reward: Math.round((150 + game.reputation*5) * (0.8 + lvl)), action: 'acceptTip' },
     ];
+    const negatives = [
+        { title: '🔍 Проверка надзора', desc: 'Инспекция! Заплатить штраф или рискнуть репутацией?', penalty: scaledPenalty(180), action: 'acceptFine' },
+        { title: '💡 Проблема с проводкой', desc: 'Подгорела проводка в боксах. Оплатить восстановление?', penalty: scaledPenalty(220), action: 'acceptRepairCost' },
+        { title: '🛠️ Поломка оборудования', desc: 'Сломался инструмент. Чинить за деньги или поработать медленнее?', penalty: scaledPenalty(260), action: 'acceptToolBreak' },
+        { title: '👷 Прибавка механику', desc: 'Механик просит прибавку, иначе уйдёт. Доплатить?', penalty: scaledPenalty(200), action: 'acceptRaise' },
+    ];
+    const events = [];
+    // на старте перевес в сторону приятных событий
+    if (Math.random() < negChance) events.push(...negatives);
+    else events.push(...positives);
+    // всегда добавим оптовика, если есть Б/У
     const usedCount = game.partsInventory.filter(p => p.quality === 'Б/У').length;
     if (usedCount > 0) {
-        events.push({ title: '📦 Крупный оптовик', desc: `Выкупит все Б/У запчасти (${usedCount} шт) по хорошей цене?`, reward: usedCount * 140, action: 'acceptWholesale' });
+        events.push({ title: '📦 Оптовик', desc: `Выкупит все Б/У запчасти (${usedCount} шт) по хорошей цене?`, reward: usedCount * 90, action: 'acceptWholesale' });
     }
     const ev = events[Math.floor(Math.random() * events.length)];
     game.currentEvent = ev;
@@ -2838,12 +2870,14 @@ function gameLoop(delta) {
         }
     }
 
-    // Случайные события — реже, но крупнее по ставкам
+    // Случайные события — на старте редкие, с ростом сервиса чаще
     if (!game.currentEvent && !game.contractOffer) {
         game.eventTimer += delta;
         if (game.eventTimer >= game.eventInterval) {
             game.eventTimer = 0;
-            game.eventInterval = 55 + Math.random() * 35; // следующее событие через ~55–90с
+            const lvl = serviceLevel();
+            // новичок: ~90–120с между событиями; топ-сервис: ~40–60с
+            game.eventInterval = (120 - lvl * 65) + Math.random() * 30;
             generateRandomEvent();
         }
     }
@@ -3214,7 +3248,7 @@ function loadGame() {
             updateBayMechanics(bay);
         });
 
-        game.maxOrders = 3 + game.receptionist.level; // согласуем с уровнем приёмщика
+        game.maxOrders = Math.min(MAX_QUEUE, 3 + game.receptionist.level); // согласуем с уровнем приёмщика
         applySeasonVisuals();
         applyWeatherLook();
         return true;
