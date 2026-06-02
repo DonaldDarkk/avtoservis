@@ -15,7 +15,9 @@
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   html,body{height:100%;overflow:hidden;}
-  body{font-family:'Rubik',system-ui,sans-serif;background:var(--bg);color:var(--text);user-select:none;}
+  body{font-family:'Rubik','Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Segoe UI Symbol',system-ui,sans-serif;background:var(--bg);color:var(--text);user-select:none;}
+  /* иконки-эмодзи: цветной emoji-шрифт в приоритете для глифов, которых нет в Rubik */
+  .order-mini,.order-mini .truck-icon,.part-icon,#ordersSidebar,.modal-card,.shelf-title{font-family:'Rubik','Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Segoe UI Symbol',sans-serif;}
   #three-container{position:fixed;inset:0;z-index:0;}
   #three-container canvas{display:block;}
 
@@ -55,7 +57,7 @@
   .btn-3d .btn-cost{font-size:13px;color:var(--gold);font-weight:600;}
   .btn-3d.green .btn-cost{color:#9be8b8;}
 
-  #ordersSidebar{position:fixed;top:64px;right:10px;z-index:9;width:190px;max-height:calc(100vh - 150px);
+  #ordersSidebar{position:fixed;top:64px;right:10px;z-index:9;width:190px;max-height:372px;
     overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding-right:2px;}
   #ordersSidebar::-webkit-scrollbar{width:5px;}
   #ordersSidebar::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
@@ -110,7 +112,7 @@
     .stat{padding:5px 9px;}
     .stat .val{font-size:16px;}
     #seasonLabel{font-size:12px;}
-    #ordersSidebar{width:150px;top:120px;}
+    #ordersSidebar{width:150px;top:120px;max-height:340px;}
     .btn-3d{font-size:13px;padding:8px 10px;}
   }
 </style>
@@ -122,6 +124,7 @@
 
 <div id="topbar">
   <div class="stat money"><span class="lbl">💰</span><span class="val" id="money3d">0</span></div>
+  <div class="stat" title="Деталькоины — редкая валюта за награды"><span class="lbl">💎</span><span class="val" id="tokens3d">0</span></div>
   <div class="stat rep"><span class="lbl">⭐</span><span class="val" id="rep3d">0</span></div>
   <div class="stat"><span class="lbl">🏗️</span><span class="val" id="garageLevelLabel">Гараж</span></div>
   <div class="stat parts"><span class="lbl">🔩</span><span class="val" id="partsCountTop">0</span></div>
@@ -145,9 +148,7 @@
   <button class="btn-3d blue" id="mechanicsBtn">👨‍🔧 Механики</button>
   <button class="btn-3d blue" id="statsBtn">📊 Прокачка</button>
   <button class="btn-3d" id="achievementsBtn">🏆 Награды</button>
-  <button class="btn-3d" id="soundBtn">🔊</button>
-  <button class="btn-3d" id="saveGameBtn">💾</button>
-  <button class="btn-3d" id="resetGameBtn">🗑️</button>
+  <button class="btn-3d" id="settingsBtn">⚙️</button>
 </div>
 
 <div class="modal" id="eventModal">
@@ -195,6 +196,35 @@
   </div>
 </div>
 
+<div class="modal" id="settingsModal">
+  <div class="modal-card" style="max-width:340px;">
+    <button class="modal-close" onclick="document.getElementById('settingsModal').style.display='none'">✕</button>
+    <h2 style="color:var(--orange);">⚙️ Настройки</h2>
+    <button class="btn-3d blue" id="helpBtn" style="width:100%;margin-top:6px;">❓ Как играть</button>
+    <button class="btn-3d" id="soundBtn" style="width:100%;margin-top:6px;">🔊 Звук: вкл</button>
+    <button class="btn-3d green" id="saveGameBtn" style="width:100%;margin-top:6px;">💾 Сохранить игру</button>
+    <button class="btn-3d" id="resetGameBtn" style="width:100%;margin-top:6px;color:#f85149;">🗑️ Сбросить прогресс</button>
+  </div>
+</div>
+
+<div class="modal" id="tutorialModal">
+  <div class="modal-card" style="max-width:520px;text-align:left;">
+    <button class="modal-close" onclick="document.getElementById('tutorialModal').style.display='none'">✕</button>
+    <h2 style="color:var(--orange);">🔧 Добро пожаловать в Автосервис!</h2>
+    <p>Ты управляешь автосервисом: принимаешь машины, чинишь их и зарабатываешь. Вот как всё устроено:</p>
+    <p><b>🚗 Очередь.</b> Машины приезжают по правой дороге и встают в очередь. Нажми на карточку заказа справа — машина заедет в свободный бокс.</p>
+    <p><b>🛠️ Боксы.</b> В боксе механики чинят машину: меняют колёса и колодки, чинят двигатель и КПП, красят, рихтуют после ДТП. Над боксом — полоса прогресса ремонта.</p>
+    <p><b>👨‍🔧 Слесари.</b> Делают ремонт. Чем выше уровень (до 5), тем быстрее. На сложные заказы нужно несколько рук — свободные сидят в курилке. Прокачивай их в меню «Механики».</p>
+    <p><b>👨‍💼 Приёмщик.</b> Отвечает за поток клиентов и размер очереди. Растёт в уровне (до 10) и даёт очки навыков: 📈 допродажи, 🔍 быстрый поиск клиентов, 🏢 работа с юрлицами.</p>
+    <p><b>🗄️ Склад-ангар.</b> Хранит запчасти (Б/У, восстановленные, новые). Б/У можно восстановить или продать.</p>
+    <p><b>🛢️ Отработка.</b> Масляные работы копят отработку в бочках. Полная бочка останавливает ремонт — заказывай откачку.</p>
+    <p><b>💰 и 💎.</b> 💰 — обычные деньги за ремонт. 💎 деталькоины — редкая валюта за контракты, срочные и VIP-заказы; копится даже при открытии филиала (престиж).</p>
+    <p><b>📋 Контракты и события.</b> Иногда приходят выгодные контракты с дедлайном и случайные события (проверки, поломки, VIP-клиенты) — решай, браться или нет.</p>
+    <p style="color:#8b949e;font-size:0.9em;">Подсказку можно открыть снова кнопкой «❓» вверху.</p>
+    <button class="btn-3d green" style="width:100%;margin-top:10px;" onclick="document.getElementById('tutorialModal').style.display='none'">Понятно, начать!</button>
+  </div>
+</div>
+
 <script type="importmap">
 {
   "imports": {
@@ -209,9 +239,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ==================== СОСТОЯНИЕ ИГРЫ ====================
+// Общий темп игры (чуть медленнее обычного)
+const GAME_SPEED = 0.82;
 const game = {
     money: 500,
     reputation: 10,
+    tokens: 0, // 💎 редкая валюта «Деталькоины» — за награды/контракты/VIP
     garageLevel: 1, // 1=Гараж, 2=Мастерская, 3=Сервисный центр, 4=Сеть
     bays: [
         { id: 0, order: null, mesh: null, progressBar: null }
@@ -239,7 +272,7 @@ const game = {
     dayTime: 0, // 0-60 день, 60-90 закат, 90-150 ночь, 150-180 рассвет, потом сброс
     isNight: false,
     eventTimer: 0,
-    eventInterval: 24,
+    eventInterval: 60,
     currentEvent: null,
     toolBreakTimer: 0,   // секунды замедления из-за поломки инструмента
     // --- экономика и время ---
@@ -297,7 +330,7 @@ const workTypes = [
     { name: 'Замена масла', icon: '🛢️', baseMoney: 80, baseTime: 9, difficulty: 1, partType: 'Масло', category: 'Двигатель', anim: 'oil', oil: true },
     { name: 'Замена фильтров', icon: '🔍', baseMoney: 100, baseTime: 11, difficulty: 1, partType: 'Фильтр', category: 'Двигатель', anim: 'engine' },
     { name: 'Замена ламп', icon: '💡', baseMoney: 50, baseTime: 6, difficulty: 1, partType: 'Лампа', category: 'Электрика', anim: 'lamps' },
-    { name: 'Замена колодок', icon: '🛞', baseMoney: 150, baseTime: 15, difficulty: 2, partType: 'Колодки', category: 'Ходовая', anim: 'wheels' },
+    { name: 'Замена колодок', icon: '⭕', baseMoney: 150, baseTime: 15, difficulty: 2, partType: 'Колодки', category: 'Ходовая', anim: 'wheels' },
     { name: 'Диагностика', icon: '💻', baseMoney: 200, baseTime: 18, difficulty: 3, partType: 'Датчик', category: 'Электрика', anim: 'scan' },
     { name: 'Шиномонтаж', icon: '🔄', baseMoney: 120, baseTime: 13, difficulty: 2, partType: 'Шина', category: 'Ходовая', anim: 'tires' },
     { name: 'Ремонт электрики', icon: '⚡', baseMoney: 250, baseTime: 20, difficulty: 3, partType: 'Проводка', category: 'Электрика', anim: 'electric' },
@@ -316,7 +349,7 @@ const truckTypes = [
     { name: 'Бортовой', icon: '🚛', color: 0xCC3333 },
     { name: 'Самосвал', icon: '🚚', color: 0xF39C12 },
     { name: 'Фура', icon: '🚛', color: 0x2980B9 },
-    { name: 'Цистерна', icon: '🛻', color: 0xBBBBBB },
+    { name: 'Цистерна', icon: '🚒', color: 0xBBBBBB },
     { name: 'Легковая', icon: '🚗', color: 0x27AE60, car: true },
     { name: 'Кроссовер', icon: '🚙', color: 0x8E44AD, car: true },
     { name: 'Газель', icon: '🚐', color: 0xECF0F1, car: true },
@@ -330,11 +363,11 @@ const specialties = ['Двигатель', 'Электрика', 'Ходовая
 const container = document.getElementById('three-container');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a2e);
-scene.fog = new THREE.Fog(0x1a1a2e, 20, 70);
+scene.fog = new THREE.Fog(0x1a1a2e, 24, 72);
 
-const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.5, 90);
-camera.position.set(13, 10, 16);
-camera.lookAt(0, 0.3, 0);
+const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.5, 100);
+camera.position.set(18, 13, 20);
+camera.lookAt(5, 0.3, 4);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(container.clientWidth, container.clientHeight);
@@ -344,11 +377,11 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0.3, 0);
+controls.target.set(5, 0.3, 4);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.minDistance = 5;
-controls.maxDistance = 38;
+controls.maxDistance = 48;
 controls.maxPolarAngle = Math.PI / 2.3;
 controls.update();
 
@@ -376,23 +409,16 @@ garageLight.castShadow = true;
 scene.add(garageLight);
 
 // ==================== ПОЛ ====================
-const floorGeom = new THREE.PlaneGeometry(34, 34);
+const floorGeom = new THREE.PlaneGeometry(64, 56);
 const floorMat = new THREE.MeshStandardMaterial({ color: 0x2a2a3a, roughness: 0.55, metalness: 0.2 });
 const floor = new THREE.Mesh(floorGeom, floorMat);
 floor.rotation.x = -Math.PI / 2;
-floor.position.y = -0.01;
+floor.position.set(6, -0.01, 8); // сдвинут к +x/+z, чтобы покрыть боковую дорогу очереди и выезд
 floor.receiveShadow = true;
 scene.add(floor);
 
-for (let i = -9; i <= 9; i += 3.5) {
-    const lineGeom = new THREE.PlaneGeometry(0.1, 3);
-    const lineMat = new THREE.MeshStandardMaterial({ color: 0xFFAA00, roughness: 0.4, emissive: 0x221100, emissiveIntensity: 0.5 });
-    const line = new THREE.Mesh(lineGeom, lineMat);
-    line.rotation.x = -Math.PI / 2;
-    line.position.set(i, 0.01, 2);
-    line.receiveShadow = true;
-    scene.add(line);
-}
+// (старая разметка парковки убрана — очередь теперь стоит на дороге со своей разметкой)
+
 
 // ==================== ФУНКЦИИ СОЗДАНИЯ ====================
 let garageBuildingMesh;
@@ -438,16 +464,19 @@ function createGarageBuilding(x, z, level = 1) {
     const winX = w * 0.32;
     const winFrame = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.1, 0.1), new THREE.MeshStandardMaterial({ color: 0x222a33, roughness: 0.4, metalness: 0.5 }));
     winFrame.position.set(winX, h * 0.45, d / 2 + 0.04); group.add(winFrame);
-    const winGlass = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.9), new THREE.MeshStandardMaterial({ color: 0x9fd0ff, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
+    const winGlass = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.9), new THREE.MeshStandardMaterial({ color: 0xbfe4ff, roughness: 0.03, metalness: 0.1, transparent: true, opacity: 0.18, side: THREE.DoubleSide }));
     winGlass.position.set(winX, h * 0.45, d / 2 + 0.1); group.add(winGlass);
-    // монитор внутри (светится)
-    const mon = new THREE.Mesh(new THREE.PlaneGeometry(0.45, 0.3), new THREE.MeshStandardMaterial({ color: 0x0a2a18, emissive: 0x33ff88, emissiveIntensity: 0.9, side: THREE.DoubleSide }));
-    mon.position.set(winX - 0.25, h * 0.42, d / 2 - 0.05); mon.rotation.y = -0.3; group.add(mon);
-    // фигурка приёмщика за стеклом
+    // монитор внутри (светится, развёрнут к окну)
+    const mon = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.34), new THREE.MeshStandardMaterial({ color: 0x0a2a18, emissive: 0x33ff88, emissiveIntensity: 1.1, side: THREE.DoubleSide }));
+    mon.position.set(winX - 0.28, h * 0.45, d / 2 - 0.02); mon.rotation.y = 0.5; mon.name = 'recMonitor'; group.add(mon);
+    // подставка/стол под монитор
+    const desk = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.08, 0.4), new THREE.MeshStandardMaterial({ color: 0x3a3f47, roughness: 0.6 }));
+    desk.position.set(winX, h * 0.3, d / 2 - 0.12); group.add(desk);
+    // фигурка приёмщика за стеклом, лицом к окну
     const recBody = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.5, 8), new THREE.MeshStandardMaterial({ color: 0x3a6ea5, roughness: 0.6 }));
-    recBody.position.set(winX + 0.15, h * 0.3, d / 2 - 0.15); group.add(recBody);
+    recBody.position.set(winX + 0.2, h * 0.42, d / 2 - 0.18); group.add(recBody);
     const recHead = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), new THREE.MeshStandardMaterial({ color: 0xe0a878, roughness: 0.7 }));
-    recHead.position.set(winX + 0.15, h * 0.3 + 0.38, d / 2 - 0.15); group.add(recHead);
+    recHead.position.set(winX + 0.2, h * 0.42 + 0.38, d / 2 - 0.18); group.add(recHead);
     // вывеска «ПРИЁМКА»
     const rcv = document.createElement('canvas'); rcv.width = 256; rcv.height = 64;
     const rctx = rcv.getContext('2d'); rctx.fillStyle = '#1a1a2e'; rctx.fillRect(0,0,256,64);
@@ -478,6 +507,27 @@ function createGarageBuilding(x, z, level = 1) {
     group.position.set(x, 0, z);
     garageBuildingMesh = group;
     scene.add(group);
+
+    // ===== Левая пристройка (удлинение здания влево) =====
+    const annexW = 4.5, annexH = h * 0.8, annexD = d;
+    const annex = new THREE.Mesh(new THREE.BoxGeometry(annexW, annexH, annexD), new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.45 }));
+    const annexCx = -w / 2 - annexW / 2 + 0.05; // примыкает к левому торцу
+    annex.position.set(annexCx, annexH / 2, 0);
+    annex.castShadow = true; annex.receiveShadow = true; group.add(annex);
+    // плоская крыша пристройки
+    const annexRoof = new THREE.Mesh(new THREE.BoxGeometry(annexW + 0.3, 0.15, annexD + 0.3), new THREE.MeshStandardMaterial({ color: 0x6a3030, roughness: 0.6 }));
+    annexRoof.position.set(annexCx, annexH + 0.05, 0); group.add(annexRoof);
+    // вывеска «Курилка» на фасаде пристройки (лицом к камере, +z)
+    const kcv = document.createElement('canvas'); kcv.width = 256; kcv.height = 72;
+    const kctx = kcv.getContext('2d'); kctx.fillStyle = '#1a1a2e'; kctx.fillRect(0,0,256,72);
+    kctx.fillStyle = '#f1c40f'; kctx.font = 'bold 30px Arial'; kctx.textAlign = 'center'; kctx.fillText('🚬 Курилка', 128, 48);
+    const ksign = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.5), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(kcv), transparent: true, side: THREE.DoubleSide }));
+    ksign.position.set(annexCx, annexH * 0.7, annexD / 2 + 0.04); group.add(ksign);
+
+    // запомним мировую X-координату фасада пристройки — туда поставим лавочку
+    group.userData.annexBenchX = x + annexCx;
+    group.userData.annexFrontZ = z + annexD / 2;
+
     return group;
 }
 
@@ -547,8 +597,9 @@ function createProgressBar() {
     const bg = new THREE.Mesh(new THREE.PlaneGeometry(2.2,0.2), new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5, side: THREE.DoubleSide }));
     bg.position.y = 3.5;
     group.add(bg);
-    const fill = new THREE.Mesh(new THREE.PlaneGeometry(0.01,0.15), new THREE.MeshStandardMaterial({ color: 0x00FF44, roughness: 0.2, emissive: 0x004400, emissiveIntensity: 0.8, side: THREE.DoubleSide }));
+    const fill = new THREE.Mesh(new THREE.PlaneGeometry(1,0.15), new THREE.MeshStandardMaterial({ color: 0x00FF44, roughness: 0.2, emissive: 0x004400, emissiveIntensity: 0.8, side: THREE.DoubleSide }));
     fill.position.set(-1.09, 3.5, 0.02);
+    fill.scale.x = 0.001;
     fill.name = 'fill';
     group.add(fill);
     group.visible = false;
@@ -636,38 +687,109 @@ function createTruck(truckType) {
     exhaust.name = 'exhaust';
     group.add(exhaust);
 
+    // ===== ОГНИ: горят у всех машин (перед = -z кабина, зад = +z кузов) =====
+    const lights = { head: [], tail: [], side: [], all: [] };
+    const mkLight = (hex, r) => {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(r || 0.075, 8, 8), new THREE.MeshBasicMaterial({ color: hex }));
+        group.add(m); lights.all.push(m); return m;
+    };
+    // передние фары (ближний свет) — тёплый белый
+    [-0.5, 0.5].forEach(x => { const l = mkLight(0xfff2c0, 0.085); l.position.set(x, 0.55, -2.04); lights.head.push(l); });
+    // задние стоп/габариты — красные
+    [-0.55, 0.55].forEach(x => { const l = mkLight(0xff2a1a, 0.08); l.position.set(x, 0.95, 2.12); lights.tail.push(l); });
+    // боковые габариты — оранжевые (перед и зад с каждого борта)
+    [-1, 1].forEach(sx => { [-1.6, 1.6].forEach(z => { const l = mkLight(0xff9911, 0.05); l.position.set(sx * 0.82, 0.7, z); lights.side.push(l); }); });
+    group.userData.lights = lights;
+
+    // ===== КПП (коробка передач): вынимается на тележке при ремонте =====
+    const gearbox = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.36, 0.5), new THREE.MeshStandardMaterial({ color: 0x6a6a6a, metalness: 0.7, roughness: 0.4 }));
+    gearbox.position.set(0, 0.42, 0.45); gearbox.visible = false; gearbox.name = 'truckGearbox';
+    group.add(gearbox); group.userData.gearbox = gearbox;
+
+    // ===== ТОРМОЗНЫЕ БАРАБАНЫ передней оси (видны при снятом колесе) =====
+    const drums = [];
+    const drumMat = new THREE.MeshStandardMaterial({ color: 0x55585c, metalness: 0.6, roughness: 0.5 });
+    for (const wi of [0, 1]) {
+        const sx = (wi === 0 ? -1 : 1);
+        const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.18, 16), drumMat);
+        drum.rotation.z = Math.PI / 2;
+        drum.position.set(sx * 0.78, 0.4, -1.3); // под передним колесом
+        drum.visible = false;
+        drum.name = 'drum' + wi;
+        drum.userData.base = drum.position.clone();
+        group.add(drum); drums.push(drum);
+    }
+    group.userData.drums = drums;
+
     // легковые/малотоннажные помечаем флагом (баланс — в generateOrder)
     if (truckType.car) group.userData.car = true;
 
     return group;
 }
 
+// Сбросить КПП/огни машины в исходное состояние (вызывается каждый кадр перед хореографией)
+function resetTruckExtras(truck) {
+    const gb = truck.userData.gearbox;
+    if (gb) { gb.visible = false; gb.position.set(0, 0.42, 0.45); gb.material.color.setHex(0x6a6a6a); }
+    if (truck.userData.lights) truck.userData.lights.all.forEach(l => l.visible = true);
+    if (truck.userData.drums) truck.userData.drums.forEach(d => { d.visible = false; });
+}
+
 function createPartsWarehouse(x, z) {
     const group = new THREE.Group();
+
+    // ===== Ангар-склад (отдельное здание) =====
+    const HW = 6.5, HD = 5, HH = 3.4;        // габариты ангара
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x6a7078, roughness: 0.6, metalness: 0.35 });
+    // задняя и боковые стены (фасад открыт — въезд погрузчика)
+    const back = new THREE.Mesh(new THREE.BoxGeometry(HW, HH, 0.16), wallMat);
+    back.position.set(0, HH/2, -HD/2); back.castShadow = true; back.receiveShadow = true; group.add(back);
+    [-1, 1].forEach(sx => {
+        const sideWall = new THREE.Mesh(new THREE.BoxGeometry(0.16, HH, HD), wallMat);
+        sideWall.position.set(sx * HW/2, HH/2, 0); sideWall.castShadow = true; sideWall.receiveShadow = true; group.add(sideWall);
+    });
+    // полукруглая (арочная) крыша из сегментов
+    const roofMat = new THREE.MeshStandardMaterial({ color: 0x8a9099, roughness: 0.5, metalness: 0.5, side: THREE.DoubleSide });
+    const arch = new THREE.Mesh(new THREE.CylinderGeometry(HW/2 + 0.1, HW/2 + 0.1, HD + 0.3, 20, 1, true, 0, Math.PI), roofMat);
+    arch.rotation.z = Math.PI / 2;          // ось вдоль X → арка раскрыта вверх
+    arch.rotation.y = Math.PI / 2;          // развернуть длину вдоль Z
+    arch.position.set(0, HH, 0); arch.castShadow = true; group.add(arch);
+    // торцевая стенка-полукруг сзади (закрывает арку)
+    const gable = new THREE.Mesh(new THREE.CircleGeometry(HW/2 + 0.1, 20, 0, Math.PI), roofMat);
+    gable.position.set(0, HH, -HD/2 - 0.14); group.add(gable);
+    // фундамент-плита
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(HW + 0.4, 0.1, HD + 0.4), new THREE.MeshStandardMaterial({ color: 0x3a3f47, roughness: 0.8 }));
+    slab.position.set(0, 0.02, 0); slab.receiveShadow = true; group.add(slab);
+    // вывеска «СКЛАД» над въездом
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 72;
+    const cx = cv.getContext('2d'); cx.fillStyle = '#1a1a2e'; cx.fillRect(0,0,256,72);
+    cx.fillStyle = '#f1c40f'; cx.font = 'bold 32px Arial'; cx.textAlign = 'center'; cx.fillText('📦 СКЛАД', 128, 48);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.6), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, side: THREE.DoubleSide }));
+    sign.position.set(0, HH + 0.35, HD/2 + 0.05); group.add(sign);
+
+    // ===== Стеллажи с запчастями внутри ангара =====
     const shelfMat = new THREE.MeshStandardMaterial({ color: 0x8B7355, roughness: 0.5, metalness: 0.3 });
+    const rack = new THREE.Group();
     for (let row = 0; row < 3; row++) {
         const shelf = new THREE.Mesh(new THREE.BoxGeometry(3,0.06,0.9), shelfMat);
-        shelf.position.y = 0.4 + row * 1.1;
-        shelf.castShadow = true;
-        shelf.receiveShadow = true;
-        group.add(shelf);
+        shelf.position.y = 0.4 + row * 0.85;
+        shelf.castShadow = true; shelf.receiveShadow = true; rack.add(shelf);
     }
     for (let sx = -1.5; sx <= 1.5; sx += 3) {
-        const side = new THREE.Mesh(new THREE.BoxGeometry(0.06,3.2,0.9), shelfMat);
-        side.position.set(sx, 1.6, 0);
-        side.castShadow = true;
-        group.add(side);
+        const side = new THREE.Mesh(new THREE.BoxGeometry(0.06,2.5,0.9), shelfMat);
+        side.position.set(sx, 1.25, 0); side.castShadow = true; rack.add(side);
     }
     const colors = [0xCC3333,0x3366CC,0x33AA33,0xCCAA00,0x888888,0xFF6600];
     for (let row = 0; row < 3; row++) {
         for (let col = 0; col < 4; col++) {
-            const box = new THREE.Mesh(new THREE.BoxGeometry(0.45,0.25,0.45), new THREE.MeshStandardMaterial({ color: colors[(row*4+col)%colors.length], roughness: 0.4, metalness: 0.5 }));
-            box.position.set(-1 + col * 0.65, 0.55 + row * 1.1, 0);
-            box.castShadow = true;
-            box.receiveShadow = true;
-            group.add(box);
+            const box = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.22,0.4), new THREE.MeshStandardMaterial({ color: colors[(row*4+col)%colors.length], roughness: 0.4, metalness: 0.5 }));
+            box.position.set(-1 + col * 0.65, 0.52 + row * 0.85, 0);
+            box.castShadow = true; box.receiveShadow = true; rack.add(box);
         }
     }
+    rack.position.set(0, 0, -HD/2 + 0.9); // стеллаж у задней стены
+    group.add(rack);
+
     group.position.set(x, 0, z);
     return group;
 }
@@ -826,13 +948,14 @@ function applySeasonVisuals() {
     const groundColors = [0x2f3a2a, 0x2a3a2f, 0x3a2f24, 0x33384a]; // весна/лето/осень/зима
     floorMat.color.setHex(game.weather === 'Снег' ? 0x4a5066 : groundColors[game.season]);
     const fogColors = [0x1a2a2e, 0x1a1a2e, 0x2a1f1e, 0x20243a];
-    if (!game.isNight) scene.fog.color.setHex(game.weather === 'Туман' ? 0x33384a : fogColors[game.season]);
-    scene.fog.near = game.weather === 'Туман' ? 5 : 12;
+    scene.fog.color.setHex(game.weather === 'Туман' ? 0x33384a : fogColors[game.season]);
+    scene.fog.near = game.weather === 'Туман' ? 10 : 24;
+    scene.fog.far = game.weather === 'Туман' ? 48 : 72;
 }
 
 
 createGarageBuilding(0, -4.5, game.garageLevel);
-scene.add(createPartsWarehouse(6.5, -4));
+scene.add(createPartsWarehouse(10.5, -4));
 
 const bay0 = createBaySlot();
 bay0.position.set(0, 0, 1);
@@ -844,59 +967,99 @@ pb0.position.copy(bay0.position);
 scene.add(pb0);
 game.bays[0].progressBar = pb0;
 
-[[-12,0,-8],[12,0,-8],[-13,0,7],[13,0,6]].forEach(([x,y,z]) => {
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.3,2.2,8), new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 }));
-    trunk.position.set(x,1.1,z);
-    trunk.castShadow = true;
-    scene.add(trunk);
-    const leaves = new THREE.Mesh(new THREE.SphereGeometry(1.0,8,5), new THREE.MeshStandardMaterial({ color: 0x2D5A27, roughness: 0.7 }));
-    leaves.position.set(x,2.5,z);
-    leaves.castShadow = true;
-    leaves.receiveShadow = true;
-    scene.add(leaves);
-});
+// (деревья убраны по просьбе — вместо них подъездная дорога к боксам, см. ниже)
 
-// ==================== КУРИЛКА (свободные работники отдыхают тут) ====================
-// Ставим слева от ворот здания, лицом к камере (камера смотрит со стороны +z)
-const SMOKE_AREA = { x: -5.2, z: -3.2 };
+// ==================== ПОДЪЕЗДНАЯ ДОРОГА К БОКСАМ ====================
+// ==================== ПОДЪЕЗДНАЯ ДОРОГА (очередь + выезд) ====================
+// Дороги: центральная (въезд/выезд у боксов, ось x≈0) и боковая очередь, уходящая ВПРАВО (+x).
+const ROAD_X = 0;            // ось центральной дороги
+const ROAD_LEN_Z0 = 2.5;     // ближний край центральной дороги (у боксов)
+const ROAD_LEN_Z1 = 36;      // дальний край (выезд) — до края карты
+// боковая дорога очереди (горизонтальная, вдоль +x)
+const QROAD_Z = 7.5;         // на какой глубине идёт дорога очереди
+const QROAD_X0 = -0.5;       // левый край (стык с центральной дорогой)
+const QROAD_X1 = 24;         // правый край (въезд машин в очередь)
+const ROAD_W = 3.4;          // ширина полотна
+const ROAD_HALF = ROAD_W / 2;
+(function buildRoad() {
+    const road = new THREE.Group();
+    const asphMat = new THREE.MeshStandardMaterial({ color: 0x2b2b30, roughness: 0.95, metalness: 0.0 });
+    const mkAsphalt = (w, l, x, z, horiz) => {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), asphMat);
+        m.rotation.x = -Math.PI / 2; if (horiz) m.rotation.z = Math.PI / 2;
+        m.position.set(x, 0.02, z); m.receiveShadow = true; road.add(m);
+    };
+    const dash = (x, z, horiz) => {
+        const d = new THREE.Mesh(new THREE.PlaneGeometry(horiz ? 0.7 : 0.16, horiz ? 0.16 : 0.7), new THREE.MeshStandardMaterial({ color: 0xd8c84a, roughness: 0.8 }));
+        d.rotation.x = -Math.PI / 2; d.position.set(x, 0.03, z); road.add(d);
+    };
+    const sideSeg = (x1, z1, x2, z2) => { // сплошная боковая линия отрезком (минуя перекрёсток)
+        const horiz = Math.abs(x2 - x1) > Math.abs(z2 - z1);
+        const len = horiz ? Math.abs(x2 - x1) : Math.abs(z2 - z1);
+        if (len < 0.1) return;
+        const s = new THREE.Mesh(new THREE.PlaneGeometry(0.1, len), new THREE.MeshStandardMaterial({ color: 0xcfcfcf, roughness: 0.8 }));
+        s.rotation.x = -Math.PI / 2; if (horiz) s.rotation.z = Math.PI / 2;
+        s.position.set((x1 + x2) / 2, 0.03, (z1 + z2) / 2); road.add(s);
+    };
+
+    const inCross = (x, z) => Math.abs(x - ROAD_X) <= ROAD_HALF + 0.2 && Math.abs(z - QROAD_Z) <= ROAD_HALF + 0.2;
+
+    // --- центральная дорога (въезд/выезд) ---
+    const cMidZ = (ROAD_LEN_Z0 + ROAD_LEN_Z1) / 2, cLenZ = ROAD_LEN_Z1 - ROAD_LEN_Z0;
+    mkAsphalt(ROAD_W, cLenZ, ROAD_X, cMidZ, false);
+    for (let z = ROAD_LEN_Z0 + 0.5; z <= ROAD_LEN_Z1 - 0.5; z += 1.4) if (!inCross(ROAD_X, z)) dash(ROAD_X, z, false);
+    // боковые линии центральной — разрывая на перекрёстке
+    [-1.6, 1.6].forEach(x => {
+        sideSeg(ROAD_X + x, ROAD_LEN_Z0, ROAD_X + x, QROAD_Z - ROAD_HALF - 0.2);
+        sideSeg(ROAD_X + x, QROAD_Z + ROAD_HALF + 0.2, ROAD_X + x, ROAD_LEN_Z1);
+    });
+
+    // --- боковая дорога очереди (уходит вправо) ---
+    const qMidX = (QROAD_X0 + QROAD_X1) / 2, qLenX = QROAD_X1 - QROAD_X0;
+    mkAsphalt(ROAD_W, qLenX, qMidX, QROAD_Z, true);
+    for (let x = QROAD_X0 + 0.8; x <= QROAD_X1 - 0.5; x += 1.4) if (!inCross(x, QROAD_Z)) dash(x, QROAD_Z, true);
+    // боковые линии боковой дороги — разрывая на перекрёстке
+    [-1.6, 1.6].forEach(z => {
+        sideSeg(ROAD_X + ROAD_HALF + 0.2, QROAD_Z + z, QROAD_X1, QROAD_Z + z);
+    });
+
+    scene.add(road);
+})();
+
+
+// ==================== ЛАВОЧКА У ПРИСТРОЙКИ (свободные работники отдыхают тут) ====================
+// Простая скамейка перед левой пристройкой, под вывеской «Курилка» на стене.
+const SMOKE_AREA = { x: -6.2, z: -2.0 };
 const smokeSpots = []; // куда садятся/встают свободные механики
 function createSmokingArea() {
+    // если здание уже знает координаты фасада пристройки — используем их
+    if (garageBuildingMesh && garageBuildingMesh.userData.annexBenchX != null) {
+        SMOKE_AREA.x = garageBuildingMesh.userData.annexBenchX;
+        SMOKE_AREA.z = garageBuildingMesh.userData.annexFrontZ + 0.5;
+    }
     const g = new THREE.Group();
     const woodDark = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.8 });
     const woodLight = new THREE.MeshStandardMaterial({ color: 0x9c7a4d, roughness: 0.8 });
     const steel = new THREE.MeshStandardMaterial({ color: 0x556070, roughness: 0.4, metalness: 0.6 });
-    // навес
-    [[-1.6,-0.7],[1.6,-0.7],[-1.6,0.7],[1.6,0.7]].forEach(([x,z]) => {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,2.2,6), steel);
-        post.position.set(x, 1.1, z); post.castShadow = true; g.add(post);
-    });
-    const canopy = new THREE.Mesh(new THREE.BoxGeometry(3.7, 0.12, 2.0), new THREE.MeshStandardMaterial({ color: 0x2e5a8a, roughness: 0.5, metalness: 0.3 }));
-    canopy.position.set(0, 2.25, 0); canopy.castShadow = true; g.add(canopy);
-    // лавка (лицом к камере, спинкой к зданию)
+    // лавка (сиденьем к камере, спинкой к зданию)
     const seat = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.12, 0.5), woodLight);
-    seat.position.set(0, 0.5, 0.55); seat.castShadow = true; g.add(seat);
+    seat.position.set(0, 0.5, 0.15); seat.castShadow = true; seat.receiveShadow = true; g.add(seat);
     const back = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.5, 0.1), woodDark);
-    back.position.set(0, 0.75, 0.32); g.add(back);
-    [-1.4,1.4].forEach(x => { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.5,0.5), woodDark); leg.position.set(x,0.25,0.55); g.add(leg); });
-    // урна-пепельница
-    const bin = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.15,0.5,10), steel);
-    bin.position.set(1.9, 0.25, 0.6); bin.castShadow = true; g.add(bin);
-    // табличка «Курилка»
-    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
-    const cx = cv.getContext('2d'); cx.fillStyle = '#1a1a2e'; cx.fillRect(0,0,256,64);
-    cx.fillStyle = '#d2991d'; cx.font = 'bold 26px Arial'; cx.textAlign = 'center'; cx.fillText('КУРИЛКА', 128, 44);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.4), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, side: THREE.DoubleSide }));
-    sign.position.set(0, 2.6, 0); g.add(sign);
+    back.position.set(0, 0.75, -0.08); g.add(back);
+    [-1.4, 1.4].forEach(x => { const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.5,0.5), woodDark); leg.position.set(x,0.25,0.15); g.add(leg); });
+    // урна-пепельница рядом
+    const bin = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.13,0.45,10), steel);
+    bin.position.set(1.85, 0.22, 0.2); bin.castShadow = true; g.add(bin);
     g.position.set(SMOKE_AREA.x, 0, SMOKE_AREA.z);
     scene.add(g);
     // позиции для рабочих: сидят на лавке (лицом к камере) + стоят рядом
-    smokeSpots.push({ x: SMOKE_AREA.x - 1.0, z: SMOKE_AREA.z + 0.55, sit: true });
-    smokeSpots.push({ x: SMOKE_AREA.x - 0.3, z: SMOKE_AREA.z + 0.55, sit: true });
-    smokeSpots.push({ x: SMOKE_AREA.x + 0.4, z: SMOKE_AREA.z + 0.55, sit: true });
-    smokeSpots.push({ x: SMOKE_AREA.x + 1.1, z: SMOKE_AREA.z + 0.55, sit: true });
-    smokeSpots.push({ x: SMOKE_AREA.x - 1.8, z: SMOKE_AREA.z + 1.1, sit: false });
-    smokeSpots.push({ x: SMOKE_AREA.x + 1.9, z: SMOKE_AREA.z + 1.2, sit: false });
-    for (let i = 0; i < 12; i++) smokeSpots.push({ x: SMOKE_AREA.x - 2.2 + (i*0.45), z: SMOKE_AREA.z + 1.7, sit: false });
+    smokeSpots.push({ x: SMOKE_AREA.x - 1.0, z: SMOKE_AREA.z + 0.15, sit: true });
+    smokeSpots.push({ x: SMOKE_AREA.x - 0.3, z: SMOKE_AREA.z + 0.15, sit: true });
+    smokeSpots.push({ x: SMOKE_AREA.x + 0.4, z: SMOKE_AREA.z + 0.15, sit: true });
+    smokeSpots.push({ x: SMOKE_AREA.x + 1.1, z: SMOKE_AREA.z + 0.15, sit: true });
+    smokeSpots.push({ x: SMOKE_AREA.x - 1.9, z: SMOKE_AREA.z + 0.7, sit: false });
+    smokeSpots.push({ x: SMOKE_AREA.x + 1.9, z: SMOKE_AREA.z + 0.8, sit: false });
+    for (let i = 0; i < 12; i++) smokeSpots.push({ x: SMOKE_AREA.x - 2.2 + (i*0.45), z: SMOKE_AREA.z + 1.3, sit: false });
 }
 createSmokingArea();
 
@@ -988,9 +1151,25 @@ function foremanInspect() {
         }
         updateUI();
     } else {
-        // у курилки: если много отдыхающих при живой очереди — ругается
-        if (freeMechanicsCount() >= 2 && game.orders.length > 0 && Math.random() < 0.5) {
-            toast('📋 Шнырь: хватит курить — очередь стоит!', '#f78166');
+        // у курилки: если много отдыхающих при живой очереди — ругается (разные фразы, дольше висят)
+        if (freeMechanicsCount() >= 2 && game.orders.length > 0 && Math.random() < 0.6) {
+            const lines = [
+                '📋 Шнырь: хватит курить — очередь стоит!',
+                '📋 Шнырь: перекур закончился, по машинам!',
+                '📋 Шнырь: клиенты ждут, а вы тут дымите!',
+                '📋 Шнырь: я всё записал, кто отлынивает!',
+                '📋 Шнырь: за простой премии не будет!',
+                '📋 Шнырь: ну-ка встали и пошли работать!',
+                '📋 Шнырь: тут вам не курорт, очередь растёт!',
+                '📋 Шнырь: ещё один перекур — и лишу аванса!',
+            ];
+            toast(lines[Math.floor(Math.random() * lines.length)], '#f78166', 5200);
+        } else if (freeMechanicsCount() >= 1 && game.orders.length === 0 && Math.random() < 0.25) {
+            const calm = [
+                '📋 Шнырь: заказов нет — отдыхайте пока.',
+                '📋 Шнырь: тишина… надо бы клиентов поискать.',
+            ];
+            toast(calm[Math.floor(Math.random() * calm.length)], '#8b949e', 4500);
         }
     }
 }
@@ -1246,6 +1425,7 @@ function generateOrder() {
     const totalTime = Math.round(works.reduce((s, w) => s + w.baseTime, 0) * timeMult);
     const hasPaint = works.some(w => w.paint);
     const hasDent = works.some(w => w.dent);
+    const isCrash = works.some(w => w.anim === 'crash'); // «После ДТП» — приезжает битой
     return {
         id: ++game.orderIdCounter,
         works,
@@ -1262,6 +1442,7 @@ function generateOrder() {
         smokeSystem: null,
         paintColor: hasPaint ? PAINT_COLORS[Math.floor(Math.random() * PAINT_COLORS.length)] : null,
         dented: hasDent,
+        crashed: isCrash,
     };
 }
 
@@ -1348,24 +1529,25 @@ function checkHiddenDefect(order) {
     }
 }
 
-// Очередь ожидающих машин — компактная парковка-сетка, чтобы помещалась на карте (22×22)
-const QUEUE_SCALE = 0.6;          // уменьшенные машины в очереди
-const QUEUE_COLS = 3;             // столбцов
-const QUEUE_X0 = 2.4, QUEUE_DX = 2.3;
-const QUEUE_Z0 = 3.5, QUEUE_DZ = 2.8;
+// Очередь ожидающих машин — колонна на боковой дороге, уходящей вправо. Полный размер.
+const QUEUE_SCALE = 1;            // машины в очереди — в полный размер (как в боксе)
+const QUEUE_X0 = 2.6;             // первая машина (ближе к центральной дороге)
+const QUEUE_DX = 4.4;             // шаг между машинами вдоль боковой дороги (длина ~4)
 function queueSlot(i) {
-    const col = i % QUEUE_COLS;
-    const row = Math.floor(i / QUEUE_COLS);
-    return { x: QUEUE_X0 + col * QUEUE_DX, z: QUEUE_Z0 + row * QUEUE_DZ };
+    return { x: QUEUE_X0 + i * QUEUE_DX, z: QROAD_Z };
 }
 
 function layoutQueue() {
     game.orders.forEach((order, i) => {
         const s = queueSlot(i);
         if (order.truckMesh) {
-            order.truckMesh.position.set(s.x, 0, s.z);
-            order.truckMesh.rotation.y = Math.PI;
-            order.truckMesh.scale.setScalar(QUEUE_SCALE);
+            const tm = order.truckMesh;
+            tm.scale.setScalar(QUEUE_SCALE);
+            tm.rotation.y = -Math.PI / 2; // нос влево (-x), к центральной дороге/боксам
+            const d = Math.abs(tm.position.z - s.z) + Math.abs(tm.position.x - s.x);
+            if (d > 0.05) animateMove(tm, new THREE.Vector3(s.x, 0, s.z), 700);
+            else tm.position.set(s.x, 0, s.z);
+            if (order.smokeSystem) order.smokeSystem.group.position.set(s.x, 0.7, s.z);
         }
     });
 }
@@ -1441,14 +1623,16 @@ function freeMechanicsCount() {
     return Math.max(0, game.mechanics.length - busy);
 }
 
-// Назначить работников из пула на бокс и показать фигурки
+// Назначить работников из пула на бокс и показать фигурки.
+// Не превышаем реальный свободный пул — если рук нет, бокс ждёт (0 механиков).
 function staffBay(bay) {
     const order = bay.order;
     if (!order) { hideBayMechanics(bay); return; }
     const want = workersNeededFor(order);
     const free = freeMechanicsCount() + (bay.assignedMechCount || 0); // вернём свои в расчёт
-    const n = Math.max(1, Math.min(want, free, 4));
+    const n = Math.max(0, Math.min(want, free, 4));
     bay.assignedMechCount = n;
+    if (n === 0) { hideBayMechanics(bay); bay.assignedMechCount = 0; return; }
     showBayMechanics(bay, n, order);
 }
 
@@ -1520,7 +1704,7 @@ function ensureBayProps(bay) {
     const cart = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.1, 0.5), new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.6 }));
     cart.position.y = 0.12; trolley.add(cart);
     const gbox = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.4, 0.4), new THREE.MeshStandardMaterial({ color: 0x6a6a6a, metalness: 0.7, roughness: 0.4 }));
-    gbox.position.y = 0.37; trolley.add(gbox);
+    gbox.position.y = 0.37; trolley.add(gbox); P.trolleyBox = gbox;
     [[-0.25,0.18],[0.25,0.18],[-0.25,-0.18],[0.25,-0.18]].forEach(([x,z]) => {
         const w = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.04,8), new THREE.MeshStandardMaterial({ color: 0x111111 }));
         w.rotation.x = Math.PI/2; w.position.set(x,0.06,z); trolley.add(w);
@@ -1567,10 +1751,11 @@ function resetTruckParts(truck) {
     if (eng) { eng.visible = false; eng.position.set(0, 0.7, -1.0); }
     for (let i = 0; i < 6; i++) {
         const w = truck.getObjectByName('wheel' + i);
-        if (w && w.userData.base) { w.position.copy(w.userData.base); w.visible = true; w.rotation.x = 0; }
+        if (w && w.userData.base) { w.position.copy(w.userData.base); w.visible = true; w.rotation.x = 0; w.rotation.z = 0; }
     }
     const cabin = truck.getObjectByName('cabin');
     if (cabin) { cabin.scale.set(1,1,1); cabin.rotation.z = 0; }
+    resetTruckExtras(truck);
 }
 
 const _cBase = new THREE.Color(), _cTarget = new THREE.Color();
@@ -1590,6 +1775,13 @@ function applyDent(truck, dent) {
         cabin.rotation.z = 0.12 * dent;
         cabin.position.z = 0.65 + 0.18 * dent;
     }
+}
+
+// Битая после ДТП: помятая кабина + отсутствует переднее левое колесо
+function applyCrashLook(truck, on) {
+    const w = truck.getObjectByName('wheel0');
+    if (w) w.visible = !on;
+    if (on) applyDent(truck, 1);
 }
 
 const easeIO = t => t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
@@ -1692,6 +1884,11 @@ function applyChoreography(bay, now) {
     const a = cs.seg.work.anim;
     const p = cs.localP;
     const stage = cs.seg.kind; // 'diagnose' | 'parts' | 'work'
+
+    // битая после ДТП остаётся без колеса и с вмятиной, пока за неё не взялись (ремонт 'crash')
+    if (order.crashed && !(a === 'crash' && p >= 0.32)) {
+        applyCrashLook(truck, true);
+    }
     // индекс/прогресс среди реальных работ — для покраски/вмятины
     const works = orderWorks(order);
     let info;
@@ -1742,19 +1939,26 @@ function applyChoreography(bay, now) {
         applyDent(truck, dent);
     }
 
+    // удобный профиль «поднять в начале — опустить в конце» (0→max→0)
+    const upDown = (max, upEnd = 0.25, downStart = 0.8) => {
+        if (p < upEnd) return max * easeIO(p / upEnd);
+        if (p > downStart) return max * (1 - easeIO((p - downStart) / (1 - downStart)));
+        return max;
+    };
+
     switch (a) {
         case 'oil':
-            if (cab) cab.rotation.x = -0.22;
+            if (cab) cab.rotation.x = -upDown(0.4);
             P.drain.visible = true;
             break;
         case 'engine':
         case 'fuel':
-            if (cab) cab.rotation.x = -0.45;
-            if (eng) eng.visible = true;
+            if (cab) cab.rotation.x = -upDown(0.75);
+            if (eng) eng.visible = p < 0.85; // двигатель виден, пока кабина поднята
             if (a === 'fuel') P.drain.visible = true;
             break;
         case 'engineCrane': {
-            if (cab) cab.rotation.x = -0.9;
+            if (cab) cab.rotation.x = -upDown(0.9, 0.2, 0.85);
             if (eng) {
                 eng.visible = true;
                 const lift = p < 0.4 ? easeIO(p/0.4) : p < 0.6 ? 1 : easeIO((1-p)/0.4);
@@ -1766,36 +1970,84 @@ function applyChoreography(bay, now) {
             break;
         }
         case 'gearbox': {
+            // Опускаем КПП из-под машины на тележку → выкатываем → ремонт → закатываем → ставим назад
+            const seg2 = (lo, hi) => Math.max(0, Math.min(1, (p - lo) / (hi - lo)));
+            const gb = truck.userData.gearbox;
             P.trolley.visible = true;
-            const out = p < 0.4 ? easeIO(p/0.4) : p < 0.6 ? 1 : easeIO((1-p)/0.4);
-            P.trolley.position.x = bay.mesh.position.x + out * 1.9;
-            P.trolley.position.z = bay.mesh.position.z + 0.8;
             P.drain.visible = true;
-            break;
-        }
-        case 'tires': {
-            // снимаем переднюю пару и катим к станку, потом обратно
-            const station = bay.equip && bay.equip.tire ? bay.equip.tire.position : { x: bay.mesh.position.x + 1.1, z: bay.mesh.position.z - 0.9 };
-            const out = p < 0.45 ? easeIO(p/0.45) : p < 0.55 ? 1 : easeIO((1-p)/0.45);
-            for (const wi of [0, 1]) {
-                const w = truck.getObjectByName('wheel' + wi);
-                if (!w || !w.userData.base) continue;
-                const homeX = w.userData.base.x, homeZ = w.userData.base.z;
-                // позиция станка в локальных координатах машины приблизительно
-                const tx = (wi === 0 ? -1 : 1) * 1.3;
-                w.position.x = homeX + (tx - homeX) * out;
-                w.position.z = homeZ + (1.6 - homeZ) * out;
-                w.position.y = 0.4 - 0.1 * out;
-                w.rotation.x = now * 0.005 * out;
+            const out = easeIO(seg2(0.2, 0.42)) - easeIO(seg2(0.6, 0.82));
+            P.trolley.position.x = bay.mesh.position.x + Math.max(0, out) * 1.9;
+            P.trolley.position.z = bay.mesh.position.z + 0.8;
+            if (gb) {
+                const underTruck = (p < 0.2) || (p > 0.82);
+                gb.visible = underTruck;
+                if (underTruck) {
+                    const d = (p < 0.2) ? easeIO(seg2(0, 0.18)) : (1 - easeIO(seg2(0.86, 1)));
+                    gb.position.y = 0.42 - 0.28 * d;
+                    if (p > 0.82) gb.material.color.setHex(0x7d8f9a); // обновлённая КПП
+                }
+            }
+            if (P.trolleyBox) {
+                P.trolleyBox.visible = p >= 0.16 && p <= 0.86;
+                if (p > 0.42 && p < 0.6) {
+                    P.trolleyBox.material.color.setHex(0x8a9aa6);
+                    if (Math.random() < 0.06) { const s = createSparkEffect(new THREE.Vector3(P.trolley.position.x, 0.5, P.trolley.position.z)); activeSparks.push(s); }
+                } else if (p <= 0.42) { P.trolleyBox.material.color.setHex(0x6a6a6a); }
             }
             break;
         }
         case 'wheels': {
-            // колодки: чуть отводим все колёса наружу для доступа к тормозам
-            const out = (p < 0.5 ? easeIO(p/0.5) : easeIO((1-p)/0.5)) * 0.25;
-            for (let i = 0; i < 6; i++) {
-                const w = truck.getObjectByName('wheel' + i);
-                if (w && w.userData.base) w.position.x = w.userData.base.x * (1 + out);
+            // Тормоза/колодки: снять передние колёса → положить рядом → снять барабан →
+            // починить → поставить барабан → надеть колёса (обратный порядок).
+            const seg = (lo, hi) => Math.max(0, Math.min(1, (p - lo) / (hi - lo)));
+            const off = easeIO(seg(0.05, 0.22));   // снимаем колесо (0→1)
+            const on  = easeIO(seg(0.80, 0.97));    // ставим обратно (0→1)
+            const wheelOut = Math.max(off - on, 0);  // 0 на месте, 1 снято и лежит рядом
+            const drums = truck.userData.drums || [];
+            for (const wi of [0, 1]) {
+                const w = truck.getObjectByName('wheel' + wi);
+                if (!w || !w.userData.base) continue;
+                const sx = (wi === 0 ? -1 : 1);
+                const bx = w.userData.base.x, by = w.userData.base.y, bz = w.userData.base.z;
+                // отводим наружу, опускаем на землю и кладём плашмя
+                w.position.x = bx + sx * 0.95 * wheelOut;
+                w.position.y = by - 0.30 * wheelOut;       // на землю
+                w.position.z = bz + 0.55 * wheelOut;        // чуть вперёд, чтобы лежало рядом
+                w.rotation.z = (Math.PI / 2) * wheelOut;    // плашмя
+                // барабан виден, пока колесо снято
+                const drum = drums[wi];
+                if (drum) {
+                    const drumOff = easeIO(seg(0.30, 0.40)) - easeIO(seg(0.62, 0.72)); // снят/возвращён
+                    const dOut = Math.max(0, drumOff);
+                    drum.visible = wheelOut > 0.7;
+                    drum.position.x = drum.userData.base.x + sx * 0.7 * dOut;
+                    drum.position.y = drum.userData.base.y - 0.28 * dOut;
+                    drum.rotation.z = Math.PI / 2 + dOut * Math.PI / 2;
+                    // искры при «починке» тормозов
+                    if (wi === 0 && p > 0.42 && p < 0.6 && Math.random() < 0.05) {
+                        const s = createSparkEffect(new THREE.Vector3(bay.mesh.position.x - 0.8, 0.4, bay.mesh.position.z - 0.5)); activeSparks.push(s);
+                    }
+                }
+            }
+            break;
+        }
+        case 'tires': {
+            // Шиномонтаж: снять переднюю пару → откатить к станку → бортировка → вернуть и надеть.
+            const seg = (lo, hi) => Math.max(0, Math.min(1, (p - lo) / (hi - lo)));
+            const off = easeIO(seg(0.05, 0.22));
+            const on  = easeIO(seg(0.80, 0.97));
+            const atStation = Math.max(off - on, 0); // 1 = у станка
+            for (const wi of [0, 1]) {
+                const w = truck.getObjectByName('wheel' + wi);
+                if (!w || !w.userData.base) continue;
+                const sx = (wi === 0 ? -1 : 1);
+                const bx = w.userData.base.x, by = w.userData.base.y, bz = w.userData.base.z;
+                // катим к станку (вперёд и в сторону), колесо «стоит» и крутится при бортировке
+                w.position.x = bx + sx * 0.6 * atStation;
+                w.position.y = by;
+                w.position.z = bz + 1.7 * atStation;
+                w.rotation.x = (p > 0.4 && p < 0.6) ? now * 0.02 : 0; // крутится на станке
+                w.rotation.z = 0;
             }
             break;
         }
@@ -1804,37 +2056,71 @@ function applyChoreography(bay, now) {
             P.scan.material.opacity = 0.4 + 0.3 * Math.abs(Math.sin(now * 0.006));
             if (bay.equip && bay.equip.diag) bay.equip.diag.children.forEach(c => { if (c.material && c.material.emissiveIntensity !== undefined) c.material.emissiveIntensity = 0.6 + 0.5*Math.abs(Math.sin(now*0.006)); });
             break;
-        case 'lamps':
-            P.lamps.forEach((l, k) => { l.visible = true; l.material.color.setHex(Math.sin(now*0.008 + k*1.5) > 0 ? 0xfff2a8 : 0x553311); });
+        case 'lamps': {
+            const L = truck.userData.lights;
+            if (L) {
+                const blink = Math.sin(now * 0.012) > 0;
+                L.head.forEach(l => l.visible = blink);
+                if (L.tail[0]) L.tail[0].visible = !blink;
+                L.side.forEach((l, k) => { l.visible = (k % 2 === 0) ? blink : true; });
+            }
             break;
+        }
         case 'electric':
             if (cab) cab.rotation.x = -0.2;
             if (Math.random() < 0.04) { const s = createSparkEffect(new THREE.Vector3(bay.mesh.position.x, 1.2, bay.mesh.position.z + 0.2)); activeSparks.push(s); }
             break;
         case 'rihtovka':
-            // вмятина уже дотягивается выше; молотки стучат (анимация рук механиков)
+            // вмятина выправляется (выше), кузовщики стучат молотками — искры
+            if (Math.random() < 0.07) { const s = createSparkEffect(new THREE.Vector3(bay.mesh.position.x + (Math.random()-0.5)*1.2, 1.0 + Math.random()*0.6, bay.mesh.position.z + 1.0)); activeSparks.push(s); }
             break;
         case 'paint':
             P.spray.visible = true;
             P.sprayParts.forEach(s => { s.material.color.setHex(order.paintColor || 0xffffff); s.material.opacity = 0.25 + 0.35*Math.random(); });
             break;
         case 'cabinSwap': {
-            if (cab) {
-                if (p < 0.5) { cab.position.y = 0.55 + easeIO(p/0.5) * 1.6; }      // снимаем старую кабину вверх
-                else { cab.position.y = 0.55 + easeIO((1-p)/0.5) * 1.6; }          // ставим новую вниз
-            }
-            if (p >= 0.5) { // новая кабина другого цвета
-                const nc = order.paintColor || 0x335577;
-                truck.userData.cabinMat.color.setHex(nc);
-            }
+            // Снимаем кабину краном вверх → меняем → опускаем новую (другого цвета)
             P.crane.visible = true;
+            const lift = (p < 0.5 ? easeIO(p / 0.5) : easeIO((1 - p) / 0.5)) * 2.4;
+            if (cab) { cab.position.y = 0.55 + lift; cab.rotation.x = 0; }
+            const hook = P.crane.getObjectByName('hook');
+            if (hook) hook.position.y = 0.9 + lift;
+            const cable = P.crane.getObjectByName('cable');
+            if (cable) { cable.scale.y = Math.max(0.1, 3.0 - lift); cable.position.y = 3.0 - (3.0 - lift) / 2; }
+            if (p >= 0.5) truck.userData.cabinMat.color.setHex(order.paintColor || 0x335577); // новая кабина
+            if (Math.random() < 0.05) { const s = createSparkEffect(new THREE.Vector3(bay.mesh.position.x, 1.5, bay.mesh.position.z + 0.2)); activeSparks.push(s); }
             break;
         }
-        case 'crash':
-            // комбо: вмятина (выше) + покраска (выше). Кран помогает на первой половине.
-            if (p < 0.5 && cab) cab.rotation.x = -0.15;
-            if (p >= 0.5) { P.spray.visible = true; P.sprayParts.forEach(s => { s.material.color.setHex(order.paintColor || 0xffffff); s.material.opacity = 0.25 + 0.35*Math.random(); }); }
+        case 'crash': {
+            // ДТП: 1) ставят снятое колесо назад, 2) рихтуют вмятину, 3) красят.
+            const w0 = truck.getObjectByName('wheel0');
+            if (w0 && w0.userData.base) {
+                if (p < 0.2) {
+                    // колесо ещё снято — лежит рядом на земле
+                    w0.visible = true;
+                    const sx = -1;
+                    w0.position.set(w0.userData.base.x + sx * 0.95, w0.userData.base.y - 0.30, w0.userData.base.z + 0.55);
+                    w0.rotation.z = Math.PI / 2;
+                } else if (p < 0.32) {
+                    // надевают колесо
+                    const t = easeIO((p - 0.2) / 0.12);
+                    const sx = -1;
+                    w0.visible = true;
+                    w0.position.set(w0.userData.base.x + sx * 0.95 * (1 - t), w0.userData.base.y - 0.30 * (1 - t), w0.userData.base.z + 0.55 * (1 - t));
+                    w0.rotation.z = (Math.PI / 2) * (1 - t);
+                } else {
+                    w0.visible = true; w0.position.copy(w0.userData.base); w0.rotation.z = 0;
+                }
+            }
+            if (p < 0.5) {
+                if (cab) cab.rotation.x = -0.15 * Math.sin(now * 0.02); // рихтовка — постукивают
+                if (p > 0.32 && Math.random() < 0.08) { const s = createSparkEffect(new THREE.Vector3(bay.mesh.position.x + (Math.random()-0.5), 1.0 + Math.random(), bay.mesh.position.z + 1.0)); activeSparks.push(s); }
+            } else {
+                P.spray.visible = true;
+                P.sprayParts.forEach(s => { s.material.color.setHex(order.paintColor || 0xffffff); s.material.opacity = 0.25 + 0.35 * Math.random(); });
+            }
             break;
+        }
     }
 }
 
@@ -1857,13 +2143,17 @@ function addNewOrder() {
     if (game.orders.length >= game.maxOrders) return;
     const order = generateOrder();
     const truck = createTruck(order.truckType);
-    const s = queueSlot(game.orders.length);
-    truck.position.set(s.x, 0, s.z);
-    truck.rotation.y = Math.PI;
+    const idx = game.orders.length;
+    const s = queueSlot(idx);
+    // появляется у правого края боковой дороги и подъезжает к своему месту в колонне
+    truck.position.set(QROAD_X1 + 1, 0, QROAD_Z);
+    truck.rotation.y = -Math.PI / 2; // нос влево (-x), к боксам
     truck.scale.setScalar(QUEUE_SCALE);
     scene.add(truck);
     order.truckMesh = truck;
-    if (order.dented) applyDent(truck, 1); // повреждённая машина видна сразу
+    if (order.crashed) applyCrashLook(truck, true);     // после ДТП — битая, без колеса
+    else if (order.dented) applyDent(truck, 1);          // прочие вмятины
+    animateMove(truck, new THREE.Vector3(s.x, 0, s.z), 1200);
     order.smokeSystem = createSmokeEffect(new THREE.Vector3(s.x, 0.7, s.z));
     game.orders.push(order);
     updateUI();
@@ -1881,14 +2171,21 @@ function assignOrderToBay(orderId, bayId) {
     bay.order = order;
     if (order.smokeSystem) { scene.remove(order.smokeSystem.group); order.smokeSystem = null; }
     if (order.truckMesh) {
-        order.truckMesh.scale.setScalar(1); // полный размер в боксе
+        const tm = order.truckMesh;
+        tm.scale.setScalar(1); // полный размер в боксе
         const target = bay.mesh.position.clone();
         target.y = 0;
         target.z += 0.8;
-        animateMove(order.truckMesh, target, 1000, () => {
-            const sp = target.clone(); sp.y += 2.5;
-            order.sparkSystem = createSparkEffect(sp);
-            activeSparks.push(order.sparkSystem);
+        // едем с боковой дороги к перекрёстку (центр), затем в бокс
+        const junction = new THREE.Vector3(ROAD_X, 0, QROAD_Z);
+        tm.rotation.y = -Math.PI / 2;
+        animateMove(tm, junction, 700, () => {
+            tm.rotation.y = 0; // развёрнута на 180° — нос (-z) к сервису/зданию
+            animateMove(tm, target, 800, () => {
+                const sp = target.clone(); sp.y += 2.5;
+                order.sparkSystem = createSparkEffect(sp);
+                activeSparks.push(order.sparkSystem);
+            });
         });
     }
     staffBay(bay);
@@ -1908,10 +2205,13 @@ function animateMove(obj, target, duration, cb) {
     tick();
 }
 
+const RECEPTIONIST_MAX_LEVEL = 10;
+function addTokens(n) { game.tokens = (game.tokens || 0) + n; }
 function addReceptionistExp(amount) {
     const r = game.receptionist;
+    if (r.level >= RECEPTIONIST_MAX_LEVEL) { r.exp = 0; return; } // достигнут максимум
     r.exp += amount;
-    while (r.exp >= r.expToNext) {
+    while (r.exp >= r.expToNext && r.level < RECEPTIONIST_MAX_LEVEL) {
         r.exp -= r.expToNext; // переносим остаток, не теряем лишний опыт
         r.level++;
         r.expToNext = Math.floor(r.expToNext * 1.5);
@@ -1919,6 +2219,7 @@ function addReceptionistExp(amount) {
         game.maxOrders = 3 + r.level;
         toast('👨‍💼 Приёмщик повысил уровень! +1 очко навыка', '#58a6ff');
         sfxDing();
+        if (r.level >= RECEPTIONIST_MAX_LEVEL) { r.exp = 0; toast('🏆 Приёмщик достиг максимального уровня 10!', '#f1c40f', 5000); break; }
     }
 }
 
@@ -1933,6 +2234,12 @@ function completeOrder(bay, order) {
     game.totalMoneyEarned += moneyEarned;
     if (order.contract) { sfxCash(); toast(`🏢 Контракт «${order.companyName}» выполнен вовремя! +${moneyEarned}💰`, '#d2991d'); }
     else sfxDing();
+    // 💎 Редкая валюта: контракт всегда даёт 2💎, срочный заказ — 1💎, обычный — изредка (8%)
+    let tokensGot = 0;
+    if (order.contract) tokensGot = 2;
+    else if (order.urgent) tokensGot = 1;
+    else if (Math.random() < 0.08) tokensGot = 1;
+    if (tokensGot > 0) { addTokens(tokensGot); toast(`💎 Получено ${tokensGot} деталькоин${tokensGot>1?'а':''}!`, '#5ac8fa', 4000); }
     addReceptionistExp(10 + order.totalTime * 2);
     if (Math.random() < 0.4) {
         game.partsInventory.push({ type: order.mainWork.partType, icon: order.mainWork.icon, quality: 'Б/У', id: Date.now() + Math.random() });
@@ -1953,12 +2260,15 @@ function completeOrder(bay, order) {
     updateUI();
 }
 
-// Машина выезжает через ворота за территорию (ворота на z=7), потом удаляется
+// Машина выезжает из бокса на центральную дорогу и уезжает за карту
 function driveOutThroughGate(truck) {
-    const gate = new THREE.Vector3(truck.position.x * 0.3, 0, 7.5);
-    animateMove(truck, gate, 1100, () => {
-        const away = new THREE.Vector3(gate.x, 0, 14);
-        animateMove(truck, away, 1000, () => scene.remove(truck));
+    truck.scale.setScalar(1);
+    truck.rotation.y = Math.PI; // нос на выезд (+z)
+    // из бокса на центральную дорогу, затем прямо к дальнему краю и за карту
+    const onRoad = new THREE.Vector3(ROAD_X, 0, ROAD_LEN_Z0 + 2);
+    animateMove(truck, onRoad, 800, () => {
+        const exit = new THREE.Vector3(ROAD_X, 0, ROAD_LEN_Z1 + 6);
+        animateMove(truck, exit, 1600, () => scene.remove(truck));
     });
 }
 
@@ -2022,17 +2332,19 @@ function acceptContract() {
     order.penalty = c.penalty;
     order.deadline = c.deadline;       // секунд на работу после загона в бокс
     order.deadlineLeft = c.deadline;
-    // ставим в очередь, как обычный заказ
+    // ставим в очередь, как обычный заказ — заезжает по боковой дороге в полный размер
     const truck = createTruck(order.truckType);
     const slot = queueSlot(game.orders.length);
-    truck.position.set(slot.x, 0, slot.z);
-    truck.rotation.y = Math.PI;
+    truck.position.set(QROAD_X1 + 1, 0, QROAD_Z);
+    truck.rotation.y = -Math.PI / 2;
     truck.scale.setScalar(QUEUE_SCALE);
     // контрактную машину помечаем золотым корпусом
     if (truck.userData.cabinMat) truck.userData.cabinMat.color.setHex(0xd2991d);
-    if (order.dented) applyDent(truck, 1);
+    if (order.crashed) applyCrashLook(truck, true);
+    else if (order.dented) applyDent(truck, 1);
     scene.add(truck);
     order.truckMesh = truck;
+    animateMove(truck, new THREE.Vector3(slot.x, 0, slot.z), 1200);
     order.smokeSystem = createSmokeEffect(new THREE.Vector3(slot.x, 0.7, slot.z));
     game.orders.push(order);
     game.contractOffer = null;
@@ -2080,16 +2392,16 @@ function failContract(bay, order) {
 // ==================== СОБЫТИЯ ====================
 function generateRandomEvent() {
     const events = [
-        { title: '🚨 Срочный ремонт!', desc: 'Клиент предлагает двойную оплату за срочный ремонт. Берёшься?', reward: 300 + game.garageLevel*120, action: 'acceptUrgent' },
-        { title: '🔍 Проверка надзора', desc: 'Инспекция! Заплатить штраф или рискнуть репутацией?', penalty: 200 + game.dayCount*15, action: 'acceptFine' },
-        { title: '💡 Скачок напряжения', desc: 'Перегорела проводка в боксах. Ремонт электрики — заплатить за восстановление?', penalty: 250, action: 'acceptRepairCost' },
-        { title: '🛠️ Поломка оборудования', desc: 'Сломался инструмент. Чинить за деньги или работать медленнее некоторое время?', penalty: 300, action: 'acceptToolBreak' },
-        { title: '👷 Текучка кадров', desc: 'Механик просит прибавку, иначе уйдёт. Доплатить?', penalty: 220, action: 'acceptRaise' },
-        { title: '🌟 Постоянный клиент', desc: 'Доволен сервисом и оставил щедрые чаевые!', reward: 180 + game.reputation*4, action: 'acceptTip' },
+        { title: '🚨 Срочный ремонт!', desc: 'Крупный клиент предлагает тройную оплату за срочный ремонт. Берёшься?', reward: 700 + game.garageLevel*260, action: 'acceptUrgent' },
+        { title: '🔍 Проверка надзора', desc: 'Серьёзная инспекция! Крупный штраф или рискнуть репутацией?', penalty: 500 + game.dayCount*35, action: 'acceptFine' },
+        { title: '💡 Авария электросети', desc: 'Выгорела проводка во всех боксах. Дорогостоящее восстановление — платить?', penalty: 650, action: 'acceptRepairCost' },
+        { title: '🛠️ Серьёзная поломка', desc: 'Вышло из строя дорогое оборудование. Чинить за деньги или надолго работать медленнее?', penalty: 800, action: 'acceptToolBreak' },
+        { title: '👷 Бунт бригады', desc: 'Механики требуют существенную прибавку, иначе уволятся. Доплатить?', penalty: 600, action: 'acceptRaise' },
+        { title: '🌟 VIP-клиент', desc: 'Очень доволен сервисом и оставил крупные чаевые!', reward: 450 + game.reputation*9, action: 'acceptTip' },
     ];
     const usedCount = game.partsInventory.filter(p => p.quality === 'Б/У').length;
     if (usedCount > 0) {
-        events.push({ title: '📦 Оптовик приехал', desc: `Продать все Б/У запчасти (${usedCount} шт) по выгодной цене?`, reward: usedCount * 70, action: 'acceptWholesale' });
+        events.push({ title: '📦 Крупный оптовик', desc: `Выкупит все Б/У запчасти (${usedCount} шт) по хорошей цене?`, reward: usedCount * 140, action: 'acceptWholesale' });
     }
     const ev = events[Math.floor(Math.random() * events.length)];
     game.currentEvent = ev;
@@ -2130,7 +2442,8 @@ function handleEvent(ev, accepted) {
         toast(`+${sum}💰 за запчасти`, '#3fb950');
     } else if (ev.action === 'acceptTip' && accepted) {
         game.money += ev.reward;
-        toast(`+${ev.reward}💰 чаевые`, '#3fb950');
+        addTokens(1);
+        toast(`+${ev.reward}💰 чаевые и +1 💎`, '#3fb950', 4000);
     } else if (ev.action === 'acceptFine') {
         if (accepted) { game.money -= ev.penalty; toast(`−${ev.penalty}💰 штраф уплачен`, '#f78166'); }
         else { game.reputation = Math.max(0, game.reputation - 12); toast('−12 репутации (отказ от проверки)', '#f85149'); }
@@ -2163,14 +2476,18 @@ function hireMechanic() {
     updateUI();
 }
 
+const MECH_MAX_LEVEL = 5;
+function mechUpgradeCost(level) { return 250 * level; } // 250/500/750/1000 за ур. 2..5
 function upgradeMechanic(mechId) {
     const mech = game.mechanics.find(m => m.id === mechId);
     if (!mech) return;
-    const cost = 250 * mech.level;
+    if (mech.level >= MECH_MAX_LEVEL) { toast('Слесарь уже максимального уровня (5)', '#f1c40f'); return; }
+    const cost = mechUpgradeCost(mech.level);
     if (game.money < cost) return;
     game.money -= cost;
     mech.level++;
-    mech.speed += 0.25;
+    mech.speed += 0.3; // ур.1→5: скорость 1.0 → 2.2
+    if (mech.level >= MECH_MAX_LEVEL) toast(`🏆 ${mech.name} достиг макс. уровня 5!`, '#f1c40f', 4000);
     updateUI();
 }
 
@@ -2261,8 +2578,10 @@ function buyTool(toolName) {
 }
 
 // ==================== НАВЫКИ ПРИЁМЩИКА ====================
+const SKILL_MAX = 5;
 function upgradeReceptionistSkill(skillName) {
     if (game.receptionist.skillPoints <= 0) return;
+    if ((game.receptionist.skills[skillName] || 1) >= SKILL_MAX) { toast('Навык уже максимального уровня (5)', '#f1c40f'); return; }
     game.receptionist.skillPoints--;
     game.receptionist.skills[skillName]++;
     updateUI();
@@ -2288,6 +2607,7 @@ function updateUI() {
 function updateHUD() {
     const globalSpeed = getGlobalMechanicSpeed();
     document.getElementById('money3d').textContent = game.money;
+    const tkEl = document.getElementById('tokens3d'); if (tkEl) tkEl.textContent = game.tokens || 0;
     document.getElementById('rep3d').textContent = game.reputation;
     document.getElementById('garageLevelLabel').textContent = LEVEL_NAMES[game.garageLevel-1] + (game.prestige ? ' ★'+game.prestige : '');
     document.getElementById('recLevel3d').textContent = game.receptionist.level;
@@ -2305,7 +2625,7 @@ function updateHUD() {
     }
 
     const seasonEl = document.getElementById('seasonLabel');
-    if (seasonEl) seasonEl.textContent = SEASON_ICONS[game.season] + ' ' + SEASONS[game.season] + ' · ' + (game.isNight ? '🌙' : '☀️') + ' · ' + weatherIcon(game.weather) + ' · Д' + game.dayCount;
+    if (seasonEl) seasonEl.textContent = SEASON_ICONS[game.season] + ' ' + SEASONS[game.season] + ' · ' + weatherIcon(game.weather) + ' · Д' + game.dayCount;
 }
 
 function weatherIcon(w) { return w === 'Дождь' ? '🌧️' : w === 'Снег' ? '🌨️' : w === 'Туман' ? '🌫️' : '☀️'; }
@@ -2317,18 +2637,18 @@ function renderMechanics() {
     if (!el) return;
     const busyIds = new Set();
     game.bays.forEach(b => { if (b.order && b.mechIds) b.mechIds.forEach(id => busyIds.add(id)); });
-    const SPEC_ICON = { 'Двигатель':'🔩', 'Электрика':'⚡', 'Ходовая':'🛞', 'Кузов':'🔨', 'Универсал':'🔧' };
+    const SPEC_ICON = { 'Двигатель':'🔩', 'Электрика':'⚡', 'Ходовая':'⭕', 'Кузов':'🔨', 'Универсал':'🔧' };
     el.innerHTML = `
         <div style="color:#8b949e;margin-bottom:8px;">Всего: ${game.mechanics.length}/${game.maxMechanics} · свободно: ${freeMechanicsCount()}</div>
         ${game.mechanics.map(m => `
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 9px;margin:4px 0;border-radius:10px;background:#0d1117;border:1px solid #30363d;text-align:left;">
                 <div>
                     <div style="font-weight:600;">${SPEC_ICON[m.specialty]||'🔧'} ${m.name} <span style="color:#8b949e;font-size:0.85em;">(${m.specialty})</span></div>
-                    <div style="font-size:0.8em;color:#8b949e;">Ур.${m.level} · ⚡${(m.speed).toFixed(2)} · ${busyIds.has(m.id) ? '<span style="color:#f78166;">в работе</span>' : '<span style="color:#3fb950;">свободен</span>'}</div>
+                    <div style="font-size:0.8em;color:#8b949e;">Ур.${m.level}/5 · ⚡${(m.speed).toFixed(2)} · ${busyIds.has(m.id) ? '<span style="color:#f78166;">в работе</span>' : '<span style="color:#3fb950;">свободен</span>'}</div>
                 </div>
-                ${m.id !== 0
-                    ? `<button class="btn-3d green" data-mech="${m.id}" style="padding:5px 9px;font-size:0.8em;min-width:auto;" ${game.money < 250*m.level ? 'disabled':''}>↑ ${250*m.level}💰</button>`
-                    : '<span style="color:#3fb950;font-size:0.85em;">Основной</span>'}
+                ${m.level >= 5
+                    ? '<span style="color:#f1c40f;font-size:0.85em;">МАКС ур.5</span>'
+                    : `<button class="btn-3d green" data-mech="${m.id}" style="padding:5px 9px;font-size:0.8em;min-width:auto;" ${game.money < 250*m.level ? 'disabled':''}>↑ ${250*m.level}💰</button>`}
             </div>`).join('')}
         <button class="btn-3d green" data-action="hire" style="width:100%;margin-top:8px;" ${game.money < 400 + game.mechanics.length*200 || game.mechanics.length >= game.maxMechanics ? 'disabled':''}>👨‍🔧 Нанять механика (${game.mechanics.length >= game.maxMechanics ? 'макс' : (400 + game.mechanics.length*200)+'💰'})</button>`;
 }
@@ -2347,7 +2667,7 @@ function renderStats() {
         <div>💰 Заработано всего: <b>${game.totalMoneyEarned}</b></div>
         <div>🏆 Рекорд за день: <b>${game.recordMoneyDay}</b></div>
         <div>⭐ Репутация: <b>${game.reputation}</b></div>
-        <div>👨‍💼 Приёмщик: <b>${game.receptionist.level}</b> (очки: ${game.receptionist.skillPoints})</div>
+        <div>👨‍💼 Приёмщик: <b>${game.receptionist.level}</b>/10 (очки: ${game.receptionist.skillPoints})</div>
         <div>👨‍🔧 Механиков: <b>${game.mechanics.length}</b> · 📦 Боксов: <b>${game.bays.length}</b></div>
         <div>📅 День: <b>${game.dayCount}</b> · ${SEASON_ICONS[game.season]} ${SEASONS[game.season]} · ${weatherIcon(game.weather)} ${game.weather}</div>
         <div>💸 Расходы в день: <b>${rent + salaries}</b> (аренда ${rent} + зарплаты ${salaries})</div>
@@ -2363,9 +2683,9 @@ function renderStats() {
         ${game.barrels.map((b, i) => `<button class="btn-3d" data-barrel="${i}" style="width:100%;margin-top:4px;" ${b.level>=BARREL_MAX_LEVEL || game.money < 400*b.level ? 'disabled':''}>🛢️ Бочка #${i+1}: Ур.${b.level} → ${b.level>=BARREL_MAX_LEVEL?'макс':'ёмкость '+barrelCapacity(b.level+1)+' ('+(400*b.level)+'💰)'}</button>`).join('')}
         <button class="btn-3d green" data-action="buyBarrel" style="width:100%;margin-top:4px;" ${game.barrels.length>=BARREL_MAX_COUNT || game.money < 600 + game.barrels.length*400 ? 'disabled':''}>➕ Купить бочку (${game.barrels.length>=BARREL_MAX_COUNT?'макс':(600 + game.barrels.length*400)+'💰'})</button>
         <div style="margin-top:8px;">🌿 Навыки приёмщика (очки за уровни: ${game.receptionist.skillPoints})</div>
-        <button class="btn-3d blue" data-action="skillUpsell" style="width:100%;margin-top:4px;" ${game.receptionist.skillPoints<=0?'disabled':''}>📈 Допродажи (${game.receptionist.skills.upsell})</button>
-        <button class="btn-3d blue" data-action="skillSearch" style="width:100%;margin-top:4px;" ${game.receptionist.skillPoints<=0?'disabled':''}>🔍 Поиск клиентов — быстрее заказы (${game.receptionist.skills.clientSearch})</button>
-        <button class="btn-3d blue" data-action="skillLegal" style="width:100%;margin-top:4px;" ${game.receptionist.skillPoints<=0?'disabled':''}>🏢 Юрлица (${game.receptionist.skills.legalWork})</button>
+        <button class="btn-3d blue" data-action="skillUpsell" style="width:100%;margin-top:4px;" ${game.receptionist.skillPoints<=0||game.receptionist.skills.upsell>=5?'disabled':''}>📈 Допродажи (${game.receptionist.skills.upsell}/5)</button>
+        <button class="btn-3d blue" data-action="skillSearch" style="width:100%;margin-top:4px;" ${game.receptionist.skillPoints<=0||game.receptionist.skills.clientSearch>=5?'disabled':''}>🔍 Поиск клиентов — быстрее заказы (${game.receptionist.skills.clientSearch}/5)</button>
+        <button class="btn-3d blue" data-action="skillLegal" style="width:100%;margin-top:4px;" ${game.receptionist.skillPoints<=0||game.receptionist.skills.legalWork>=5?'disabled':''}>🏢 Юрлица (${game.receptionist.skills.legalWork}/5)</button>
         <hr style="border-color:#30363d;margin:8px 0;">
         <button class="btn-3d ${canPrestige?'green':''}" data-action="prestige" style="width:100%;" ${canPrestige?'':'disabled'}>🚀 Открыть филиал — престиж (нужен ур.4 и 20000💰)</button>`;
 }
@@ -2423,7 +2743,7 @@ function renderAchievements() {
 
 // ==================== ВСПЛЫВАЮЩИЕ УВЕДОМЛЕНИЯ ====================
 let toastBox = null;
-function toast(text, color) {
+function toast(text, color, duration) {
     if (!toastBox) {
         toastBox = document.createElement('div');
         toastBox.id = 'toastBox';
@@ -2434,8 +2754,9 @@ function toast(text, color) {
     t.style.borderColor = color || '#30363d';
     t.textContent = text;
     toastBox.appendChild(t);
-    setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; }, 3200);
-    setTimeout(() => t.remove(), 3800);
+    const dur = duration || 3200;
+    setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(40px)'; }, dur);
+    setTimeout(() => t.remove(), dur + 600);
 }
 
 
@@ -2484,17 +2805,11 @@ window.upgradeMechById = function(mechId) { upgradeMechanic(mechId); };
 function gameLoop(delta) {
     if (game.bankrupt) return; // игра окончена — ждём перезапуска
 
-    // День/ночь
-    game.dayTime += delta * 2;
+    // Смена дня/ночи убрана — меняются только времена года.
+    // dayTime используется как таймер длительности «дня» (для смены сезона и экономики).
+    game.dayTime += delta * 2 * GAME_SPEED;
     if (game.dayTime >= 180) { game.dayTime -= 180; endOfDay(); }
-    const wasNight = game.isNight;
-    game.isNight = game.dayTime > 90 && game.dayTime < 150;
-    if (wasNight !== game.isNight) {
-        scene.background = new THREE.Color(game.isNight ? 0x0a0a1e : 0x1a1a2e);
-        ambientLight.intensity = game.isNight ? 0.2 : 0.5;
-        sun.intensity = game.isNight ? 0.8 : 2.5;
-        applySeasonVisuals();
-    }
+    game.isNight = false; // ночи больше нет — всегда дневное освещение
 
     processContracts(delta);
     updatePump(delta);
@@ -2523,11 +2838,12 @@ function gameLoop(delta) {
         }
     }
 
-    // Случайные события
+    // Случайные события — реже, но крупнее по ставкам
     if (!game.currentEvent && !game.contractOffer) {
         game.eventTimer += delta;
         if (game.eventTimer >= game.eventInterval) {
             game.eventTimer = 0;
+            game.eventInterval = 55 + Math.random() * 35; // следующее событие через ~55–90с
             generateRandomEvent();
         }
     }
@@ -2554,9 +2870,26 @@ function gameLoop(delta) {
         if (game.isNight) bonus *= 1.3;
         bonus *= weatherMult;
         bonus *= 1 + 0.25 * ((bay.assignedMechCount || 1) - 1); // больше работников в боксе — быстрее
+        // если боксу не досталось рук — пробуем доукомплектовать, иначе ждём (прогресс стоит)
+        if ((bay.assignedMechCount || 0) === 0 && cs.seg.kind !== 'parts') {
+            staffBay(bay);
+            if ((bay.assignedMechCount || 0) === 0) {
+                applyChoreography(bay, nowMs);
+                if (bay.progressBar && bay.progressBar.visible) {
+                    const fill = bay.progressBar.getObjectByName('fill');
+                    if (fill) {
+                        const pct = Math.min(1, order.progress / order.timelineTotal);
+                        fill.scale.x = Math.max(0.001, 2.18 * pct);
+                        fill.position.x = -1.09 + 1.09 * pct;
+                        fill.material.color.setHex(0x8b949e); // серый — ждём свободного механика
+                    }
+                }
+                continue; // нет механиков — ремонт не идёт
+            }
+        }
         // этап «заказ запчастей» идёт с фиксированной скоростью (ждём поставку), не зависит от рук
         const segSpeed = cs.seg.kind === 'parts' ? 1.0 : speed * bonus;
-        if (!wasteIsFull()) order.progress += segSpeed * delta; // при полном кубе ремонт стоит
+        if (!wasteIsFull()) order.progress += segSpeed * delta * GAME_SPEED; // при полном кубе ремонт стоит
         // скрытый дефект — по завершении диагностики
         if (cs.seg.kind !== 'diagnose' && !order.diagChecked) checkHiddenDefect(order);
         // режиссура: ставим машину и реквизит по текущей операции
@@ -2703,7 +3036,7 @@ function doPrestige() {
     const newMult = 1 + 0.15 * newPrestige;
     // сохраняем «новый забег» с сохранением престижа, наград и общей статистики
     const save = {
-        money: 500, reputation: 10, garageLevel: 1,
+        money: 500, reputation: 10, tokens: game.tokens || 0, garageLevel: 1,
         receptionist: { level: 1, exp: 0, expToNext: 100, skillPoints: 0, skills: { upsell: 1, clientSearch: 1, legalWork: 1 } },
         mechanics: [{ id: 0, name: 'Петро', level: 1, speed: 1.0, specialty: 'Универсал', cost: 0 }],
         tools: { lift: false, diagnosticStand: false, tireMachine: false },
@@ -2765,7 +3098,7 @@ function serializeOrder(o) {
     return { id: o.id, works: orderWorks(o).map(w => w.name),
              mainWork: o.mainWork.name, extraWork: o.extraWork ? o.extraWork.name : null,
              money: o.money, totalTime: o.totalTime, progress: o.progress, truckType: o.truckType.name,
-             paintColor: o.paintColor, dented: o.dented,
+             paintColor: o.paintColor, dented: o.dented, crashed: o.crashed,
              contract: o.contract, companyName: o.companyName, penalty: o.penalty, deadline: o.deadline, deadlineLeft: o.deadlineLeft, diagChecked: o.diagChecked };
 }
 function deserializeOrder(s) {
@@ -2779,7 +3112,7 @@ function deserializeOrder(s) {
         money: s.money, totalTime: s.totalTime, progress: s.progress || 0,
         assignedBay: null, truckType: findTruck(s.truckType),
         truckMesh: null, sparkSystem: null, smokeSystem: null,
-        paintColor: s.paintColor || null, dented: !!s.dented,
+        paintColor: s.paintColor || null, dented: !!s.dented, crashed: !!s.crashed,
         contract: !!s.contract, companyName: s.companyName || null, penalty: s.penalty || 0,
         deadline: s.deadline || null, deadlineLeft: s.deadlineLeft != null ? s.deadlineLeft : null,
         diagChecked: !!s.diagChecked,
@@ -2789,7 +3122,7 @@ function deserializeOrder(s) {
 function saveGame(silent) {
     try {
         const save = {
-            money: game.money, reputation: game.reputation, garageLevel: game.garageLevel,
+            money: game.money, reputation: game.reputation, tokens: game.tokens || 0, garageLevel: game.garageLevel,
             receptionist: game.receptionist, mechanics: game.mechanics, tools: game.tools,
             bays: game.bays.map(b => ({ id: b.id })),
             totalOrdersCompleted: game.totalOrdersCompleted, totalMoneyEarned: game.totalMoneyEarned,
@@ -2814,6 +3147,7 @@ function loadGame() {
         const save = JSON.parse(data);
         game.money = save.money ?? 500;
         game.reputation = save.reputation ?? 10;
+        game.tokens = save.tokens ?? 0;
         if (save.garageLevel) { game.garageLevel = save.garageLevel; createGarageBuilding(0, -4.5, game.garageLevel); }
         if (save.receptionist) game.receptionist = save.receptionist;
         // тихо «дотягиваем» уровень, если в старом сохранении накопился лишний опыт
@@ -2857,7 +3191,7 @@ function loadGame() {
             const truck = createTruck(order.truckType);
             const slot = queueSlot(game.orders.length);
             truck.position.set(slot.x, 0, slot.z);
-            truck.rotation.y = Math.PI;
+            truck.rotation.y = -Math.PI / 2; // нос влево, вдоль боковой дороги
             truck.scale.setScalar(QUEUE_SCALE);
             scene.add(truck);
             order.truckMesh = truck;
@@ -2895,14 +3229,16 @@ document.getElementById('restorePartBtn').addEventListener('click', restorePart)
 document.getElementById('sellPartBtn').addEventListener('click', sellAllUsed);
 document.getElementById('statsBtn').addEventListener('click', () => { document.getElementById('statsModal').style.display = 'flex'; renderStats(); });
 document.getElementById('achievementsBtn').addEventListener('click', () => { document.getElementById('achievementsModal').style.display = 'flex'; renderAchievements(); });
+document.getElementById('settingsBtn').addEventListener('click', () => { document.getElementById('settingsModal').style.display = 'flex'; });
+document.getElementById('helpBtn').addEventListener('click', () => { document.getElementById('settingsModal').style.display = 'none'; document.getElementById('tutorialModal').style.display = 'flex'; });
 document.getElementById('saveGameBtn').addEventListener('click', () => saveGame(false));
 document.getElementById('resetGameBtn').addEventListener('click', () => { if (confirm('Сбросить весь прогресс?')) { localStorage.removeItem('slesarSave'); location.reload(); } });
 
-// Кнопка звука
+// Кнопка звука (в настройках)
 const soundBtn = document.getElementById('soundBtn');
 soundBtn.addEventListener('click', () => {
     setSound(!game.soundOn);
-    soundBtn.textContent = game.soundOn ? '🔊' : '🔇';
+    soundBtn.textContent = game.soundOn ? '🔊 Звук: вкл' : '🔇 Звук: выкл';
     saveGame(true);
 });
 
@@ -2959,8 +3295,13 @@ function animate() {
 // ==================== СТАРТ ====================
 const hadSave = loadGame();
 if (!hadSave) { addNewOrder(); addNewOrder(); }
-soundBtn.textContent = game.soundOn ? '🔊' : '🔇';
+soundBtn.textContent = game.soundOn ? '🔊 Звук: вкл' : '🔇 Звук: выкл';
 updateUI();
+// Первый запуск — показываем обучение (один раз)
+if (!localStorage.getItem('slesarTutorialSeen')) {
+    document.getElementById('tutorialModal').style.display = 'flex';
+    localStorage.setItem('slesarTutorialSeen', '1');
+}
 animate();
 </script>
 
