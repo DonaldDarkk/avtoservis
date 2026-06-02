@@ -237,6 +237,42 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+// ==================== СКРУГЛЁННАЯ ГЕОМЕТРИЯ ====================
+// Мягкая коробка с фаской по краям — убирает «прототипный» острый вид,
+// сохраняя мультяшный стиль. Кэшируем по размерам, чтобы не плодить геометрию.
+const _roundedCache = new Map();
+function roundedBox(w, h, d, r) {
+    r = Math.min(r != null ? r : 0.08, w / 2 - 0.001, h / 2 - 0.001, d / 2 - 0.001);
+    if (r <= 0) return new THREE.BoxGeometry(w, h, d);
+    const key = `${w.toFixed(3)}_${h.toFixed(3)}_${d.toFixed(3)}_${r.toFixed(3)}`;
+    if (_roundedCache.has(key)) return _roundedCache.get(key);
+    // профиль грани (скруглённый прямоугольник в плоскости XY) + экструзия по глубине с фаской
+    const x = w / 2 - r, y = h / 2 - r;
+    const shape = new THREE.Shape();
+    shape.moveTo(-x, -h / 2);
+    shape.lineTo(x, -h / 2);
+    shape.quadraticCurveTo(w / 2, -h / 2, w / 2, -y);
+    shape.lineTo(w / 2, y);
+    shape.quadraticCurveTo(w / 2, h / 2, x, h / 2);
+    shape.lineTo(-x, h / 2);
+    shape.quadraticCurveTo(-w / 2, h / 2, -w / 2, y);
+    shape.lineTo(-w / 2, -y);
+    shape.quadraticCurveTo(-w / 2, -h / 2, -x, -h / 2);
+    const bevel = Math.min(r, d / 2 - 0.001);
+    const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: d - bevel * 2, bevelEnabled: true,
+        bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, steps: 1,
+    });
+    geo.translate(0, 0, -(d - bevel * 2) / 2); // центрируем по Z
+    geo.computeVertexNormals();
+    _roundedCache.set(key, geo);
+    return geo;
+}
 
 // ==================== СОСТОЯНИЕ ИГРЫ ====================
 // Общий темп игры (чуть медленнее обычного)
@@ -362,8 +398,23 @@ const specialties = ['Двигатель', 'Электрика', 'Ходовая
 // ==================== THREE.JS НАСТРОЙКА ====================
 const container = document.getElementById('three-container');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1a2e);
-scene.fog = new THREE.Fog(0x1a1a2e, 24, 72);
+// Градиентное небо (от насыщенного верха к светлому горизонту)
+function makeSkyTexture() {
+    const cv = document.createElement('canvas'); cv.width = 16; cv.height = 256;
+    const ctx = cv.getContext('2d');
+    const grad = ctx.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, '#2a3a6e');   // зенит
+    grad.addColorStop(0.5, '#5a7bb5'); // середина
+    grad.addColorStop(0.82, '#aec4e0'); // у горизонта светлее
+    grad.addColorStop(1, '#d8e2f0');   // дымка горизонта
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, 16, 256);
+    const tex = new THREE.CanvasTexture(cv);
+    if ('colorSpace' in tex && THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+    else if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
+    return tex;
+}
+scene.background = makeSkyTexture();
+scene.fog = new THREE.Fog(0xaec4e0, 28, 80);
 
 const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.5, 100);
 camera.position.set(18, 13, 20);
@@ -374,6 +425,13 @@ renderer.setSize(container.clientWidth, container.clientHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// кинематографичный тонмаппинг + корректная гамма = сочные, «дорогие» цвета
+if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
+else if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+if ('useLegacyLights' in renderer) renderer.useLegacyLights = false;
+else renderer.physicallyCorrectLights = true;
 container.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -385,12 +443,52 @@ controls.maxDistance = 48;
 controls.maxPolarAngle = Math.PI / 2.3;
 controls.update();
 
-// ==================== ОСВЕЩЕНИЕ ====================
-const ambientLight = new THREE.AmbientLight(0x404060, 0.5);
+// ==================== ПОСТ-ОБРАБОТКА (bloom + виньетка) ====================
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+// Bloom — мягкое свечение ярких частей (фары, неон, мониторы, блики)
+const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(container.clientWidth, container.clientHeight),
+    0.45,  // сила свечения (умеренная, чтобы не «выжигать»)
+    0.7,   // радиус
+    0.85   // порог: светятся только реально яркие пиксели
+);
+composer.addPass(bloomPass);
+
+// Виньетка — лёгкое затемнение по краям, добавляет глубину и фокус
+const vignetteShader = {
+    uniforms: {
+        tDiffuse: { value: null },
+        offset: { value: 1.05 },
+        darkness: { value: 1.2 },
+    },
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `
+        uniform sampler2D tDiffuse; uniform float offset; uniform float darkness; varying vec2 vUv;
+        void main(){
+            vec4 tex = texture2D(tDiffuse, vUv);
+            vec2 uv = (vUv - 0.5) * offset;
+            float vig = clamp(1.0 - dot(uv, uv) * (darkness - 1.0), 0.0, 1.0);
+            gl_FragColor = vec4(tex.rgb * vig, tex.a);
+        }`,
+};
+const vignettePass = new ShaderPass(vignetteShader);
+composer.addPass(vignettePass);
+
+// ==================== ОСВЕЩЕНИЕ (трёхточечная схема) ====================
+// Небо/земля: тёплый свет сверху, отражённый от земли — снизу. Заполняет тени мягко.
+const hemiLight = new THREE.HemisphereLight(0xbfd4ff, 0x4a4030, 1.4);
+hemiLight.position.set(0, 30, 0);
+scene.add(hemiLight);
+
+// лёгкая общая подсветка, чтобы тени не были чёрными
+const ambientLight = new THREE.AmbientLight(0x6a7290, 0.35);
 scene.add(ambientLight);
 
-const sun = new THREE.DirectionalLight(0xffeedd, 2.5);
-sun.position.set(12, 18, 6);
+// Ключевой свет — тёплое «утреннее солнце» с одной стороны
+const sun = new THREE.DirectionalLight(0xfff0d8, 3.2);
+sun.position.set(14, 20, 8);
 sun.castShadow = true;
 sun.shadow.mapSize.width = 2048;
 sun.shadow.mapSize.height = 2048;
@@ -400,10 +498,17 @@ sun.shadow.camera.left = -28;
 sun.shadow.camera.right = 28;
 sun.shadow.camera.top = 28;
 sun.shadow.camera.bottom = -28;
-sun.shadow.bias = -0.0001;
+sun.shadow.bias = -0.0002;
+sun.shadow.normalBias = 0.02;
+sun.shadow.radius = 3; // мягкие края теней
 scene.add(sun);
 
-const garageLight = new THREE.PointLight(0xffaa44, 2, 12);
+// Заполняющий свет — холодный, с противоположной стороны, без теней (объём)
+const fillLight = new THREE.DirectionalLight(0x9bb8ff, 0.8);
+fillLight.position.set(-16, 10, -6);
+scene.add(fillLight);
+
+const garageLight = new THREE.PointLight(0xffaa44, 8, 14, 2);
 garageLight.position.set(0, 4, -2);
 garageLight.castShadow = true;
 scene.add(garageLight);
@@ -434,7 +539,7 @@ function createGarageBuilding(x, z, level = 1) {
         case 4: w = 14; d = 7; h = 6.5; color = 0x8899AA; break;
         default: w = 8; d = 4; h = 3.5; color = 0x556677;
     }
-    const wallGeom = new THREE.BoxGeometry(w, h, d);
+    const wallGeom = roundedBox(w, h, d, 0.25);
     const wallMat = new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.5 });
     const walls = new THREE.Mesh(wallGeom, wallMat);
     walls.position.y = h / 2;
@@ -609,10 +714,45 @@ function createProgressBar() {
 // Общие (переиспользуемые) ресурсы — экономят память и нагрузку на видеокарту
 const SHARED = {
     tireGeo: new THREE.TorusGeometry(0.32, 0.1, 8, 16),
-    tireMat: new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 }),
+    tireMat: new THREE.MeshStandardMaterial({ color: 0x18181a, roughness: 0.95, metalness: 0.0 }),
     rimGeo: new THREE.CylinderGeometry(0.18, 0.18, 0.22, 8),
-    rimMat: new THREE.MeshStandardMaterial({ color: 0xCCCCCC, roughness: 0.2, metalness: 0.9 }),
+    rimMat: new THREE.MeshStandardMaterial({ color: 0xd8dde2, roughness: 0.15, metalness: 1.0 }),
+    // частицы: одна геометрия и один материал на все искры/дым (без пересоздания → нет утечек)
+    sparkGeo: new THREE.SphereGeometry(0.015, 3, 3),
+    sparkMat: new THREE.MeshBasicMaterial({ color: 0xFFAA00, transparent: true, opacity: 1 }),
+    smokeGeo: new THREE.SphereGeometry(0.06, 5, 5),
+    smokeMat: new THREE.MeshBasicMaterial({ color: 0x999999, transparent: true, opacity: 0.4 }),
 };
+
+// Полностью убрать объект со сцены и освободить его геометрию/материалы (кроме общих SHARED/FIG)
+const _sharedGeos = new Set();
+const _sharedMats = new Set();
+function registerShared() {
+    [SHARED.tireGeo, SHARED.rimGeo, SHARED.sparkGeo, SHARED.smokeGeo].forEach(g => _sharedGeos.add(g));
+    [SHARED.tireMat, SHARED.rimMat, SHARED.sparkMat, SHARED.smokeMat].forEach(m => _sharedMats.add(m));
+    if (typeof FIG !== 'undefined') {
+        [FIG.body, FIG.head, FIG.limb].forEach(g => g && _sharedGeos.add(g));
+        if (FIG.suitMats) Object.values(FIG.suitMats).forEach(m => _sharedMats.add(m));
+    }
+}
+function isCachedRounded(geo) {
+    for (const g of _roundedCache.values()) if (g === geo) return true;
+    return false;
+}
+function disposeObject(obj) {
+    if (!obj) return;
+    obj.traverse(node => {
+        if (node.geometry && !_sharedGeos.has(node.geometry) && !isCachedRounded(node.geometry)) {
+            if (node.geometry.dispose) node.geometry.dispose();
+        }
+        if (node.material) {
+            const mats = Array.isArray(node.material) ? node.material : [node.material];
+            mats.forEach(m => { if (m && m.dispose && !_sharedMats.has(m)) m.dispose(); });
+        }
+    });
+    if (obj.parent) obj.parent.remove(obj);
+    else scene.remove(obj);
+}
 
 function createTruck(truckType) {
     const group = new THREE.Group();
@@ -628,29 +768,29 @@ function createTruck(truckType) {
     cabinPivot.name = 'cabinPivot';
     group.add(cabinPivot);
 
-    const cabinMat = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.4 });
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.4,1.1,1.2), cabinMat);
+    const cabinMat = new THREE.MeshStandardMaterial({ color, roughness: 0.42, metalness: 0.55 });
+    const cabin = new THREE.Mesh(roundedBox(1.4,1.1,1.2,0.16), cabinMat);
     cabin.position.set(0, 0.55, 0.65); // относительно шарнира
     cabin.castShadow = true;
     cabin.name = 'cabin';
     cabinPivot.add(cabin);
 
-    const glass = new THREE.Mesh(new THREE.PlaneGeometry(1.0,0.45), new THREE.MeshStandardMaterial({ color: 0x88CCFF, roughness: 0.1, metalness: 0.1, side: THREE.DoubleSide }));
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(1.0,0.45), new THREE.MeshStandardMaterial({ color: 0x223a4d, roughness: 0.05, metalness: 0.6, side: THREE.DoubleSide }));
     glass.position.set(0, 0.8, 1.24);
     glass.name = 'glass';
     cabinPivot.add(glass);
 
     // Двигатель под кабиной (вынимается краном)
     const engineMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.7 });
-    const engine = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.55,0.8), engineMat);
+    const engine = new THREE.Mesh(roundedBox(0.8,0.55,0.8,0.1), engineMat);
     engine.position.set(0, 0.7, -1.0);
     engine.castShadow = true;
     engine.name = 'engine';
     engine.visible = false; // виден только при поднятой кабине
     group.add(engine);
 
-    const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.4 });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.5,0.9,2.2), bodyMat);
+    const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.42, metalness: 0.55 });
+    const body = new THREE.Mesh(roundedBox(1.5,0.9,2.2,0.14), bodyMat);
     body.position.set(0,1.0,1.0);
     body.castShadow = true;
     body.name = 'body';
@@ -798,7 +938,7 @@ function createSparkEffect(position) {
     const group = new THREE.Group();
     const particles = [];
     for (let i = 0; i < 12; i++) {
-        const s = new THREE.Mesh(new THREE.SphereGeometry(0.015,3,3), new THREE.MeshBasicMaterial({ color: 0xFFAA00 }));
+        const s = new THREE.Mesh(SHARED.sparkGeo, SHARED.sparkMat); // общие гео/материал
         s.position.copy(position);
         s.userData = { vel: new THREE.Vector3((Math.random()-0.5)*2, Math.random()*2.5+1, (Math.random()-0.5)*2), life: 0.4+Math.random()*0.4, age: 0 };
         group.add(s);
@@ -812,9 +952,9 @@ function createSmokeEffect(position) {
     const group = new THREE.Group();
     const particles = [];
     for (let i = 0; i < 6; i++) {
-        const s = new THREE.Mesh(new THREE.SphereGeometry(0.06,5,5), new THREE.MeshBasicMaterial({ color: 0x999999, transparent: true, opacity: 0.4 }));
+        const s = new THREE.Mesh(SHARED.smokeGeo, SHARED.smokeMat); // общие гео/материал
         s.position.copy(position);
-        s.userData = { vel: new THREE.Vector3((Math.random()-0.5)*0.2, Math.random()*0.3+0.15, (Math.random()-0.5)*0.2), life: 1+Math.random(), age: 0, baseScale: 0.06 };
+        s.userData = { vel: new THREE.Vector3((Math.random()-0.5)*0.2, Math.random()*0.3+0.15, (Math.random()-0.5)*0.2), life: 1+Math.random(), age: 0, baseScale: 1 };
         group.add(s);
         particles.push(s);
     }
@@ -836,6 +976,9 @@ const FIG = {
     },
     skin: new THREE.MeshStandardMaterial({ color: 0xe0a878, roughness: 0.7 }),
 };
+// регистрируем общие ресурсы, чтобы disposeObject их не освобождал
+registerShared();
+if (FIG.skin) _sharedMats.add(FIG.skin);
 
 // Какой инструмент нужен под операцию
 function toolKindForAnim(anim) {
@@ -945,12 +1088,13 @@ function applyWeatherLook() {
 
 // ==================== СЕЗОНЫ ====================
 function applySeasonVisuals() {
-    const groundColors = [0x2f3a2a, 0x2a3a2f, 0x3a2f24, 0x33384a]; // весна/лето/осень/зима
-    floorMat.color.setHex(game.weather === 'Снег' ? 0x4a5066 : groundColors[game.season]);
-    const fogColors = [0x1a2a2e, 0x1a1a2e, 0x2a1f1e, 0x20243a];
-    scene.fog.color.setHex(game.weather === 'Туман' ? 0x33384a : fogColors[game.season]);
-    scene.fog.near = game.weather === 'Туман' ? 10 : 24;
-    scene.fog.far = game.weather === 'Туман' ? 48 : 72;
+    const groundColors = [0x3a4a32, 0x364a38, 0x4a3a28, 0x44495a]; // весна/лето/осень/зима (светлее)
+    floorMat.color.setHex(game.weather === 'Снег' ? 0xaeb8cc : groundColors[game.season]);
+    // светлый дневной туман-дымка, по сезонам с лёгким оттенком
+    const fogColors = [0xb8cfe0, 0xc2d6e8, 0xd0c4b0, 0xc8d0e0]; // весна/лето/осень/зима
+    scene.fog.color.setHex(game.weather === 'Туман' ? 0xc8cdda : fogColors[game.season]);
+    scene.fog.near = game.weather === 'Туман' ? 12 : 28;
+    scene.fog.far = game.weather === 'Туман' ? 50 : 80;
 }
 
 
@@ -1326,7 +1470,7 @@ function updatePump(delta) {
         if (pump.guard > 8) { pump.state = 'pumping'; pump.startWaste = game.wasteOil; pump.t = 0; pump.guard = 0; }
     } else if (pump.state === 'leaving') {
         pump.guard = (pump.guard || 0) + delta;
-        if (pump.guard > 8) { if (pump.truck) scene.remove(pump.truck); pump.truck = null; pump.state = 'idle'; pump.guard = 0; }
+        if (pump.guard > 8) { if (pump.truck) disposeObject(pump.truck); pump.truck = null; pump.state = 'idle'; pump.guard = 0; }
     } else {
         pump.guard = 0;
     }
@@ -1342,7 +1486,7 @@ function updatePump(delta) {
             toast('✅ Отработка откачана — ремонт можно продолжать', '#3fb950');
             const t = pump.truck;
             const hose = t && t.getObjectByName('hose'); if (hose) hose.visible = false;
-            animateMove(t, new THREE.Vector3(-2, 0, 17), 2000, () => { if (pump.truck) scene.remove(pump.truck); pump.truck = null; pump.state = 'idle'; });
+            animateMove(t, new THREE.Vector3(-2, 0, 17), 2000, () => { if (pump.truck) disposeObject(pump.truck); pump.truck = null; pump.state = 'idle'; });
         }
     }
 }
@@ -2272,7 +2416,7 @@ function driveOutThroughGate(truck) {
     const onRoad = new THREE.Vector3(ROAD_X, 0, ROAD_LEN_Z0 + 2);
     animateMove(truck, onRoad, 800, () => {
         const exit = new THREE.Vector3(ROAD_X, 0, ROAD_LEN_Z1 + 6);
-        animateMove(truck, exit, 1600, () => scene.remove(truck));
+        animateMove(truck, exit, 1600, () => disposeObject(truck));
     });
 }
 
@@ -2982,9 +3126,12 @@ function gameLoop(delta) {
             s.userData.age += delta;
             if (s.userData.age < s.userData.life) {
                 alive = true;
-                s.position.add(s.userData.vel.clone().multiplyScalar(delta));
-                s.userData.vel.y += 9.8 * delta;
-                s.material.opacity = 1 - s.userData.age / s.userData.life;
+                const v = s.userData.vel;
+                s.position.x += v.x * delta; s.position.y += v.y * delta; s.position.z += v.z * delta;
+                v.y += 9.8 * delta;
+                // затухание масштабом (общий материал не трогаем — иначе перекрасит все искры)
+                const k = 1 - s.userData.age / s.userData.life;
+                s.scale.setScalar(Math.max(0.001, k));
             } else s.visible = false;
         }
         if (!alive) { scene.remove(sys.group); activeSparks.splice(i, 1); }
@@ -2998,12 +3145,13 @@ function gameLoop(delta) {
                 const qs = queueSlot(game.orders.indexOf(order));
                 p.position.set(qs.x, 0.7, qs.z);
                 p.userData.age = 0;
-                p.scale.setScalar(p.userData.baseScale);
-                p.material.opacity = 0.4;
+                p.scale.setScalar(1);
             } else {
-                p.position.add(p.userData.vel.clone().multiplyScalar(delta));
-                p.scale.setScalar(p.userData.baseScale + p.userData.age * 0.25);
-                p.material.opacity = 0.4 * (1 - p.userData.age / p.userData.life);
+                const v = p.userData.vel;
+                p.position.x += v.x * delta; p.position.y += v.y * delta; p.position.z += v.z * delta;
+                // рост + затухание масштабом (имитация рассеивания дыма)
+                const k = 1 - p.userData.age / p.userData.life;
+                p.scale.setScalar((1 + p.userData.age * 4) * Math.max(0.05, k));
             }
         }
     }
@@ -3309,7 +3457,7 @@ document.getElementById('mechanicsModal').addEventListener('click', (e) => {
 document.addEventListener('click', (e) => { if (e.target.closest('.btn-3d')) sfxClick(); });
 document.addEventListener('pointerdown', () => { initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); });
 
-window.addEventListener('resize', () => { camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight); });
+window.addEventListener('resize', () => { camera.aspect = container.clientWidth / container.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(container.clientWidth, container.clientHeight); composer.setSize(container.clientWidth, container.clientHeight); bloomPass.setSize(container.clientWidth, container.clientHeight); });
 
 // Автосохранение каждые 30 секунд
 setInterval(() => { if (!game.bankrupt) saveGame(true); }, 30000);
@@ -3321,7 +3469,7 @@ function animate() {
     const delta = Math.min(clock.getDelta(), 0.1);
     gameLoop(delta);
     controls.update();
-    renderer.render(scene, camera);
+    composer.render();
     uiTimer += delta;
     if (uiTimer > 0.3) { uiTimer = 0; updateHUD(); if (statsOpen()) renderStats(); }
 }
