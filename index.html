@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Автосервис — Симулятор СТО (v6.5)</title>
+<title>Автосервис — Симулятор СТО</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
@@ -204,7 +204,6 @@
     <button class="btn-3d" id="soundBtn" style="width:100%;margin-top:6px;">🔊 Звук: вкл</button>
     <button class="btn-3d green" id="saveGameBtn" style="width:100%;margin-top:6px;">💾 Сохранить игру</button>
     <button class="btn-3d" id="resetGameBtn" style="width:100%;margin-top:6px;color:#f85149;">🗑️ Сбросить прогресс</button>
-    <div style="margin-top:10px;color:#8b949e;font-size:0.8em;">Версия игры: <span id="versionLabel">—</span></div>
   </div>
 </div>
 
@@ -242,9 +241,6 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-
-// ==================== ВЕРСИЯ ИГРЫ ====================
-const GAME_VERSION = '6.5';
 
 // ==================== СКРУГЛЁННАЯ ГЕОМЕТРИЯ ====================
 // Мягкая коробка с фаской по краям — убирает «прототипный» острый вид,
@@ -386,13 +382,11 @@ const workTypes = [
 ];
 
 const truckTypes = [
-    { name: 'Бортовой', icon: '🚛', color: 0xCC3333, bodyKind: 'flatbed' },
-    { name: 'Самосвал', icon: '🚚', color: 0xF39C12, bodyKind: 'dump' },
-    { name: 'Фура', icon: '🚛', color: 0x2980B9, bodyKind: 'semi' },
-    { name: 'Цистерна', icon: '🚒', color: 0xBBBBBB, bodyKind: 'tank' },
-    { name: 'Легковая', icon: '🚗', color: 0x27AE60, car: true, bodyKind: 'sedan' },
-    { name: 'Кроссовер', icon: '🚙', color: 0x8E44AD, car: true, bodyKind: 'suv' },
-    { name: 'Газель', icon: '🚐', color: 0xECF0F1, car: true, bodyKind: 'van' },
+    { name: 'Бортовой', icon: '🚛', color: 0xCC3333, shape: 'flatbed' },
+    { name: 'Самосвал', icon: '🚚', color: 0xF39C12, shape: 'dump' },
+    { name: 'Фура', icon: '🚛', color: 0x2980B9, shape: 'semi' },
+    { name: 'Цистерна', icon: '🚒', color: 0xBBBBBB, shape: 'tanker' },
+    { name: 'Газель', icon: '🚐', color: 0xECF0F1, shape: 'van' },
 ];
 
 const companies = ['ТрансЛогистик', 'ГрузАвто', 'ДальПром', 'СибПеревозки', 'АгроТранс', 'СпецТех'];
@@ -434,16 +428,8 @@ if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) renderer.outputColor
 else if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
-// Современное (физически корректное) освещение без устаревших предупреждений.
-// В новых версиях three это поведение по умолчанию, поэтому трогаем свойства
-// только если они ещё актуальны для установленной ревизии.
-const _threeRev = parseInt(THREE.REVISION, 10) || 999;
-if (_threeRev <= 154) {
-    // старые версии: включаем физкорректный режим явно
-    if ('useLegacyLights' in renderer) renderer.useLegacyLights = false;
-    else if ('physicallyCorrectLights' in renderer) renderer.physicallyCorrectLights = true;
-}
-// в ревизиях > 154 ничего настраивать не нужно — устаревшее свойство не трогаем
+if ('useLegacyLights' in renderer) renderer.useLegacyLights = false;
+else renderer.physicallyCorrectLights = true;
 container.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -766,136 +752,146 @@ function disposeObject(obj) {
     else scene.remove(obj);
 }
 
+// Строит кузов по типу. Возвращает { body, parts[], rearZ, rearLightY }.
+function buildCargo(shape, color, bodyMat) {
+    const parts = [];
+    const steel = new THREE.MeshStandardMaterial({ color: 0x9a9ea3, roughness: 0.4, metalness: 0.8 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x33363b, roughness: 0.5, metalness: 0.6 });
+    let body, rearZ = 2.1, rearLightY = 0.9;
+
+    if (shape === 'tanker') {
+        // ЦИСТЕРНА: крупный горизонтальный цилиндр
+        body = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.82, 2.8, 22), bodyMat);
+        body.rotation.x = Math.PI / 2;
+        body.position.set(0, 1.25, 1.0); body.name = 'body';
+        parts.push(body);
+        [-0.4, 2.4].forEach(z => {
+            const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.84, 0.84, 0.1, 22), dark);
+            cap.rotation.x = Math.PI / 2; cap.position.set(0, 1.25, z); parts.push(cap);
+        });
+        const hatch = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.14, 12), steel);
+        hatch.position.set(0, 2.08, 0.8); parts.push(hatch);
+        const cradle = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.22, 2.8), dark);
+        cradle.position.set(0, 0.62, 1.0); parts.push(cradle);
+        rearZ = 2.5; rearLightY = 0.7;
+
+    } else if (shape === 'dump') {
+        // САМОСВАЛ: высокий кузов-ковш, заметно наклонён назад, высокие борта и задний борт
+        body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 2.3), bodyMat);
+        body.position.set(0, 1.45, 1.15);
+        body.rotation.x = -0.12; // выраженный наклон ковша назад
+        body.name = 'body';
+        parts.push(body);
+        // высокие борта (рёбра)
+        [-0.82, 0.82].forEach(x => {
+            const side = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.95, 2.3), dark);
+            side.position.set(x, 1.5, 1.15); side.rotation.x = -0.12; parts.push(side);
+        });
+        // высокий задний борт
+        const tail = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.85, 0.12), dark);
+        tail.position.set(0, 1.62, 2.32); parts.push(tail);
+        // передний борт (выше, у кабины)
+        const frontWall = new THREE.Mesh(new THREE.BoxGeometry(1.62, 1.0, 0.12), dark);
+        frontWall.position.set(0, 1.65, 0.0); parts.push(frontWall);
+        // гидроцилиндр подъёма
+        const ram = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.6, 8), steel);
+        ram.position.set(0, 0.95, 0.15); ram.rotation.x = 0.35; parts.push(ram);
+        rearZ = 2.45; rearLightY = 0.7;
+
+    } else if (shape === 'semi') {
+        // ФУРА: длинный полуприцеп-фургон
+        const trailer = new THREE.Mesh(roundedBox(1.6, 1.7, 3.6, 0.12), bodyMat);
+        trailer.position.set(0, 1.5, 1.8); trailer.name = 'body';
+        parts.push(trailer); body = trailer;
+        const doors = new THREE.Mesh(new THREE.BoxGeometry(1.55, 1.6, 0.06), dark);
+        doors.position.set(0, 1.5, 3.61); parts.push(doors);
+        const hitch = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.6), dark);
+        hitch.position.set(0, 0.7, -0.1); parts.push(hitch);
+        [-0.5, 0.5].forEach(x => {
+            const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.08), steel);
+            leg.position.set(x, 0.35, 0.3); parts.push(leg);
+        });
+        rearZ = 3.64; rearLightY = 0.8;
+
+    } else if (shape === 'van') {
+        // ГАЗЕЛЬ: высокий цельный фургон
+        body = new THREE.Mesh(roundedBox(1.5, 1.35, 2.5, 0.14), bodyMat);
+        body.position.set(0, 1.25, 0.85); body.name = 'body';
+        parts.push(body);
+        const doors = new THREE.Mesh(new THREE.BoxGeometry(1.45, 1.2, 0.06), dark);
+        doors.position.set(0, 1.25, 2.11); parts.push(doors);
+        rearZ = 2.12; rearLightY = 0.7;
+
+    } else {
+        // БОРТОВОЙ: открытая платформа с бортами
+        const bed = new THREE.Mesh(new THREE.BoxGeometry(1.58, 0.18, 2.4), dark);
+        bed.position.set(0, 0.72, 1.0); parts.push(bed);
+        body = new THREE.Mesh(roundedBox(1.58, 0.55, 2.4, 0.06), bodyMat);
+        body.position.set(0, 1.05, 1.0); body.name = 'body';
+        parts.push(body);
+        const inner = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.42, 2.05), dark);
+        inner.position.set(0, 1.16, 1.0); parts.push(inner);
+        rearZ = 2.2; rearLightY = 0.9;
+    }
+
+    return { body, parts, rearZ, rearLightY };
+}
+
 function createTruck(truckType) {
     const group = new THREE.Group();
     const color = truckType.color;
-    const kind = truckType.bodyKind || 'flatbed';
-    const isCar = !!truckType.car;
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(1.7,0.15,4), new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.3, metalness: 0.8 }));
+    frame.position.y = 0.45;
+    frame.castShadow = true;
+    group.add(frame);
+
+    // Кабина на шарнире (откидывается вперёд для доступа к двигателю)
+    const cabinPivot = new THREE.Group();
+    cabinPivot.position.set(0, 0.55, -1.95); // шарнир у переднего края
+    cabinPivot.name = 'cabinPivot';
+    group.add(cabinPivot);
 
     const cabinMat = new THREE.MeshStandardMaterial({ color, roughness: 0.42, metalness: 0.55 });
-    const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.42, metalness: 0.55 });
+    const cabin = new THREE.Mesh(roundedBox(1.4,1.1,1.2,0.16), cabinMat);
+    cabin.position.set(0, 0.55, 0.65); // относительно шарнира
+    cabin.castShadow = true;
+    cabin.name = 'cabin';
+    cabinPivot.add(cabin);
+
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(1.0,0.45), new THREE.MeshStandardMaterial({ color: 0x223a4d, roughness: 0.05, metalness: 0.6, side: THREE.DoubleSide }));
+    glass.position.set(0, 0.8, 1.24);
+    glass.name = 'glass';
+    cabinPivot.add(glass);
+
+    // Двигатель под кабиной (вынимается краном)
     const engineMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.7 });
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.3, metalness: 0.8 });
-    const glassMat = new THREE.MeshStandardMaterial({ color: 0x223a4d, roughness: 0.05, metalness: 0.6, side: THREE.DoubleSide });
+    const engine = new THREE.Mesh(roundedBox(0.8,0.55,0.8,0.1), engineMat);
+    engine.position.set(0, 0.7, -1.0);
+    engine.castShadow = true;
+    engine.name = 'engine';
+    engine.visible = false; // виден только при поднятой кабине
+    group.add(engine);
 
-    let cabin, body, glass, axleZ, wheelR = 0.4, wheelX = 0.85;
+    const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.42, metalness: 0.55 });
+    const shape = truckType.shape || 'flatbed';
+    const cargo = buildCargo(shape, color, bodyMat);
+    const body = cargo.body;
+    cargo.parts.forEach(p => { p.castShadow = true; group.add(p); });
+    group.userData.cargoTopZ = cargo.rearZ; // где задок кузова (для фонарей)
 
-    if (isCar) {
-        // ===== ЛЕГКОВЫЕ/ГАЗЕЛЬ: цельный кузов, 4 колеса, ОТКРЫВАЕТСЯ КАПОТ (кабина неподвижна) =====
-        // Размеры заметно меньше грузовиков; газель — среднее звено.
-        const D = {
-            sedan: { len: 3.0, wid: 1.4, lowH: 0.42, roofH: 0.5, roofLen: 1.35, roofZ: 0.15, hoodLen: 0.85, wR: 0.32, wX: 0.72, axles: [-0.95, 0.95] },
-            suv:   { len: 3.1, wid: 1.5, lowH: 0.52, roofH: 0.62, roofLen: 1.7, roofZ: 0.1,  hoodLen: 0.8,  wR: 0.37, wX: 0.76, axles: [-0.95, 0.95] },
-            van:   { len: 3.9, wid: 1.6, lowH: 0.5,  roofH: 1.05, roofLen: 2.7, roofZ: 0.45, hoodLen: 0.75, wR: 0.38, wX: 0.8,  axles: [-1.15, 1.25] },
-        }[kind] || { len: 3.0, wid: 1.4, lowH: 0.42, roofH: 0.5, roofLen: 1.35, roofZ: 0.15, hoodLen: 0.85, wR: 0.32, wX: 0.72, axles: [-0.95, 0.95] };
-
-        wheelR = D.wR; wheelX = D.wX; axleZ = D.axles;
-        const baseY = 0.42; // низ кузова над землёй
-
-        // нижний объём кузова — играет роль "body" (красится)
-        body = new THREE.Mesh(roundedBox(D.wid, D.lowH, D.len, 0.16), bodyMat);
-        body.position.set(0, baseY + D.lowH/2, 0);
-        body.castShadow = true; body.name = 'body';
-        group.add(body);
-
-        if (kind === 'van') {
-            // ГАЗЕЛЬ: невысокая кабина спереди + высокий грузовой фургон сзади (аккуратно состыкованы)
-            const cabLen = 1.0;
-            const cabZ = -D.len/2 + D.hoodLen + cabLen/2;
-            // кабина (неподвижная)
-            cabin = new THREE.Mesh(roundedBox(D.wid - 0.06, 0.8, cabLen, 0.14), cabinMat);
-            cabin.position.set(0, baseY + D.lowH + 0.4, cabZ);
-            cabin.castShadow = true; cabin.name = 'cabin';
-            group.add(cabin);
-            // лобовое стекло кабины
-            glass = new THREE.Mesh(new THREE.PlaneGeometry(D.wid - 0.22, 0.4), glassMat);
-            glass.position.set(0, baseY + D.lowH + 0.58, cabZ + cabLen/2 + 0.01);
-            glass.name = 'glass'; group.add(glass);
-            // грузовой фургон (выше кабины), стоит вплотную за кабиной
-            const boxLen = D.len - D.hoodLen - cabLen;
-            const cargo = new THREE.Mesh(roundedBox(D.wid + 0.04, D.roofH, boxLen, 0.06), bodyMat);
-            cargo.position.set(0, baseY + D.lowH + D.roofH/2, cabZ + cabLen/2 + boxLen/2);
-            cargo.castShadow = true; group.add(cargo);
-            group.userData.paintExtra = cargo;
-        } else {
-            // ЛЕГКОВАЯ/КРОССОВЕР: крыша-кабина (неподвижная) поверх кузова
-            cabin = new THREE.Mesh(roundedBox(D.wid - 0.12, D.roofH, D.roofLen, 0.18), cabinMat);
-            cabin.position.set(0, baseY + D.lowH + D.roofH/2, D.roofZ);
-            cabin.castShadow = true; cabin.name = 'cabin';
-            group.add(cabin);
-            // лобовое и заднее стекло
-            glass = new THREE.Mesh(new THREE.PlaneGeometry(D.wid - 0.28, D.roofH * 0.7), glassMat);
-            glass.position.set(0, baseY + D.lowH + D.roofH*0.55, D.roofZ + D.roofLen/2 + 0.01);
-            glass.name = 'glass'; group.add(glass);
-            const rearGlass = new THREE.Mesh(new THREE.PlaneGeometry(D.wid - 0.28, D.roofH * 0.6), glassMat);
-            rearGlass.position.set(0, baseY + D.lowH + D.roofH*0.55, D.roofZ - D.roofLen/2 - 0.01);
-            group.add(rearGlass);
-        }
-
-        // КАПОТ на шарнире спереди (открывается вверх). Имя 'hood' — анимация моторных работ.
-        const hoodPivot = new THREE.Group();
-        const hoodFrontZ = -D.len/2;
-        hoodPivot.position.set(0, baseY + D.lowH, hoodFrontZ + D.hoodLen); // шарнир у заднего края капота
-        hoodPivot.name = 'hoodPivot';
-        group.add(hoodPivot);
-        const hood = new THREE.Mesh(roundedBox(D.wid - 0.08, 0.1, D.hoodLen, 0.06), cabinMat);
-        hood.position.set(0, 0.02, -D.hoodLen/2);
-        hood.castShadow = true; hood.name = 'hood';
-        hoodPivot.add(hood);
-
-        // двигатель под капотом
-        const engine = new THREE.Mesh(roundedBox(D.wid - 0.35, 0.32, D.hoodLen - 0.15, 0.06), engineMat);
-        engine.position.set(0, baseY + D.lowH - 0.05, hoodFrontZ + D.hoodLen/2);
-        engine.name = 'engine'; engine.visible = false; engine.userData.base = engine.position.clone();
-        group.add(engine);
-
-        group.userData.isCarBody = true;
-
-    } else {
-        // ===== ГРУЗОВЫЕ: рама + кабина + двигатель + тип-специфичный кузов сзади =====
-        const frame = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.15, 4), darkMat);
-        frame.position.y = 0.45; frame.castShadow = true; group.add(frame);
-
-        const cabinPivot = new THREE.Group();
-        cabinPivot.position.set(0, 0.55, -1.95);
-        cabinPivot.userData.baseY = 0.55;
-        cabinPivot.name = 'cabinPivot';
-        group.add(cabinPivot);
-
-        cabin = new THREE.Mesh(roundedBox(1.4, 1.1, 1.2, 0.16), cabinMat);
-        cabin.position.set(0, 0.55, 0.65);
-        cabin.castShadow = true; cabin.name = 'cabin';
-        cabinPivot.add(cabin);
-
-        glass = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.45), glassMat);
-        glass.position.set(0, 0.8, 1.24); glass.name = 'glass';
-        cabinPivot.add(glass);
-
-        const engine = new THREE.Mesh(roundedBox(0.8, 0.55, 0.8, 0.1), engineMat);
-        engine.position.set(0, 0.7, -1.0);
-        engine.name = 'engine'; engine.visible = false; engine.userData.base = engine.position.clone();
-        group.add(engine);
-
-        // тип-специфичный кузов (всё, что сзади кабины) — функция-строитель
-        body = buildTruckBody(kind, color, bodyMat, group);
-
-        axleZ = [-1.3, 0.6, 1.6]; // 3 оси
-    }
-
-    // ===== КОЛЁСА (4 у легковых, 6 у грузовых) =====
+    // Колёса: 3 оси, пары слева/справа, шина повёрнута вертикально (вбок), именованы
+    const axleZ = [-1.3, 0.6, 1.6];
     let wi = 0;
     for (let a = 0; a < axleZ.length; a++) {
         for (const side of [-1, 1]) {
             const wg = new THREE.Group();
             const tire = new THREE.Mesh(SHARED.tireGeo, SHARED.tireMat);
             tire.rotation.y = Math.PI / 2;
-            if (isCar) tire.scale.set(wheelR / 0.4, wheelR / 0.4, 0.8); // тоньше и по размеру
             wg.add(tire);
             const rim = new THREE.Mesh(SHARED.rimGeo, SHARED.rimMat);
             rim.rotation.z = Math.PI / 2;
-            if (isCar) rim.scale.setScalar(wheelR / 0.4);
             wg.add(rim);
-            wg.position.set(side * wheelX, wheelR, axleZ[a]);
+            wg.position.set(side * 0.85, 0.4, axleZ[a]);
             wg.userData.base = wg.position.clone();
             wg.name = 'wheel' + wi;
             wg.castShadow = true;
@@ -903,146 +899,57 @@ function createTruck(truckType) {
             wi++;
         }
     }
-    group.userData.wheelCount = wi;
 
     group.userData.paintParts = [cabin, body];
-    if (group.userData.paintExtra) group.userData.paintParts.push(group.userData.paintExtra);
     group.userData.baseColor = color;
     group.userData.cabinMat = cabinMat;
     group.userData.bodyMat = bodyMat;
-    if (cabin) group.userData.cabinBase = cabin.position.clone();
 
-    // выхлопная труба (у грузовых сбоку сзади; у легковых снизу сзади)
     const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.06,0.4,8), new THREE.MeshStandardMaterial({ color: 0x777777, roughness: 0.3, metalness: 0.8 }));
-    if (isCar) { exhaust.rotation.z = Math.PI/2; exhaust.position.set(0.35, 0.35, axleZ[axleZ.length-1] + 0.7); }
-    else exhaust.position.set(0.55, 0.6, -2.1);
+    exhaust.position.set(0.55,0.6,-2.1);
     exhaust.name = 'exhaust';
     group.add(exhaust);
 
-    // ===== ОГНИ: горят у всех машин (перед = -z, зад = +z) =====
-    const halfLen = isCar ? (Math.abs(axleZ[0]) + (group.userData.bodyKind==='van'?1.5:0.55)) : 0;
-    const frontZ = isCar ? -(halfLen) : -2.04;
-    const backZ = isCar ? (halfLen) : 2.12;
+    // ===== ОГНИ: вынесены наружу, видны у всех типов =====
     const lights = { head: [], tail: [], side: [], all: [] };
     const mkLight = (hex, r) => {
         const m = new THREE.Mesh(new THREE.SphereGeometry(r || 0.075, 8, 8), new THREE.MeshBasicMaterial({ color: hex }));
         group.add(m); lights.all.push(m); return m;
     };
-    [-0.5, 0.5].forEach(x => { const l = mkLight(0xfff2c0, isCar ? 0.07 : 0.085); l.position.set(x * (isCar?0.9:1), isCar?0.5:0.55, frontZ); lights.head.push(l); });
-    [-0.5, 0.5].forEach(x => { const l = mkLight(0xff2a1a, isCar ? 0.06 : 0.08); l.position.set(x * (isCar?0.9:1.1), isCar?0.55:0.95, backZ); lights.tail.push(l); });
-    [-1, 1].forEach(sx => { [frontZ * 0.6, backZ * 0.6].forEach(z => { const l = mkLight(0xff9911, 0.05); l.position.set(sx * wheelX, isCar?0.45:0.7, z); lights.side.push(l); }); });
+    // передние фары — у переднего края рамы, всегда снаружи кабины
+    [-0.5, 0.5].forEach(x => { const l = mkLight(0xfff2c0, 0.09); l.position.set(x, 0.5, -2.06); lights.head.push(l); });
+    // задние фонари — на отдельной перекладине-кронштейне сзади, гарантированно снаружи кузова
+    const rearZ = (cargo.rearZ != null ? cargo.rearZ : 2.1) + 0.06;
+    const rearY = cargo.rearLightY != null ? cargo.rearLightY : 0.9;
+    [-0.62, 0.62].forEach(x => { const l = mkLight(0xff2a1a, 0.085); l.position.set(x, rearY, rearZ); lights.tail.push(l); });
+    // боковые габариты — приподняты над колёсами, по борту рамы (снаружи)
+    [-1, 1].forEach(sx => { [-1.4, 0.2, 1.6].forEach(z => { const l = mkLight(0xff9911, 0.05); l.position.set(sx * 0.88, 0.62, z); lights.side.push(l); }); });
     group.userData.lights = lights;
 
-    // ===== КПП: вынимается на тележке при ремонте =====
+    // ===== КПП (коробка передач): вынимается на тележке при ремонте =====
     const gearbox = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.36, 0.5), new THREE.MeshStandardMaterial({ color: 0x6a6a6a, metalness: 0.7, roughness: 0.4 }));
-    gearbox.position.set(0, isCar ? 0.32 : 0.42, isCar ? 0.0 : 0.45); gearbox.visible = false; gearbox.name = 'truckGearbox';
+    gearbox.position.set(0, 0.42, 0.45); gearbox.visible = false; gearbox.name = 'truckGearbox';
     group.add(gearbox); group.userData.gearbox = gearbox;
 
-    // ===== ТОРМОЗНЫЕ БАРАБАНЫ передней оси =====
+    // ===== ТОРМОЗНЫЕ БАРАБАНЫ передней оси (видны при снятом колесе) =====
     const drums = [];
     const drumMat = new THREE.MeshStandardMaterial({ color: 0x55585c, metalness: 0.6, roughness: 0.5 });
-    for (const di of [0, 1]) {
-        const sx = (di === 0 ? -1 : 1);
-        const drum = new THREE.Mesh(new THREE.CylinderGeometry(wheelR*0.65, wheelR*0.65, 0.18, 16), drumMat);
+    for (const wi of [0, 1]) {
+        const sx = (wi === 0 ? -1 : 1);
+        const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.18, 16), drumMat);
         drum.rotation.z = Math.PI / 2;
-        drum.position.set(sx * (wheelX - 0.07), wheelR, axleZ[0]);
+        drum.position.set(sx * 0.78, 0.4, -1.3); // под передним колесом
         drum.visible = false;
-        drum.name = 'drum' + di;
+        drum.name = 'drum' + wi;
         drum.userData.base = drum.position.clone();
         group.add(drum); drums.push(drum);
     }
     group.userData.drums = drums;
 
+    // легковые/малотоннажные помечаем флагом (баланс — в generateOrder)
     if (truckType.car) group.userData.car = true;
-    group.userData.bodyKind = kind;
-
-    // Итоговый «габаритный» масштаб: легковые заметно меньше грузовиков, газель — среднее.
-    const DISPLAY_SCALE = { sedan: 0.6, suv: 0.66, van: 0.8 }[kind] || 1.0;
-    group.userData.displayScale = DISPLAY_SCALE;
-    group.scale.setScalar(DISPLAY_SCALE);
 
     return group;
-}
-
-// Применить «габаритный» масштаб машины (легковые меньше грузовиков). Всегда вместо setScalar(1).
-function applyTruckScale(truck) {
-    if (truck && truck.userData) truck.scale.setScalar(truck.userData.displayScale || 1);
-}
-
-// Строитель кузова грузовика по типу (всё, что позади кабины). Возвращает основной mesh (для покраски).
-function buildTruckBody(kind, color, bodyMat, group) {
-    const steel = new THREE.MeshStandardMaterial({ color: 0x8a8d92, metalness: 0.7, roughness: 0.4 });
-    const darkBed = new THREE.MeshStandardMaterial({ color: 0x4a4d52, metalness: 0.6, roughness: 0.6 });
-    let body;
-
-    if (kind === 'dump') {
-        // САМОСВАЛ: наклоняемый кузов-ковш с высокими бортами
-        body = new THREE.Mesh(roundedBox(1.6, 1.0, 2.3, 0.06), bodyMat);
-        body.position.set(0, 1.15, 1.0);
-        body.castShadow = true; body.name = 'body';
-        group.add(body);
-        // приподнятый задний борт (намёк на ковш)
-        const tail = new THREE.Mesh(new THREE.BoxGeometry(1.62, 1.0, 0.08), darkBed);
-        tail.position.set(0, 1.15, 2.16); group.add(tail);
-        // гидроцилиндр спереди кузова
-        const ram = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.7, 8), steel);
-        ram.position.set(0, 0.95, -0.1); ram.rotation.x = 0.3; group.add(ram);
-
-    } else if (kind === 'semi') {
-        // ФУРА: седельный тягач + большой закрытый прицеп на отдельных осях
-        body = new THREE.Mesh(roundedBox(1.7, 1.7, 3.4, 0.1), bodyMat); // прицеп-фургон
-        body.position.set(0, 1.45, 1.5);
-        body.castShadow = true; body.name = 'body';
-        group.add(body);
-        // сцепка
-        const hitch = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.6), steel);
-        hitch.position.set(0, 0.6, -0.2); group.add(hitch);
-        // задние двери прицепа (тёмные)
-        const doors = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), new THREE.MeshStandardMaterial({ color: 0x2a2d33, metalness: 0.5, roughness: 0.6, side: THREE.DoubleSide }));
-        doors.position.set(0, 1.45, 3.21); group.add(doors);
-        // дополнительная задняя ось прицепа
-        for (const side of [-1, 1]) {
-            const wg = new THREE.Group();
-            const tire = new THREE.Mesh(SHARED.tireGeo, SHARED.tireMat); tire.rotation.y = Math.PI/2; wg.add(tire);
-            const rim = new THREE.Mesh(SHARED.rimGeo, SHARED.rimMat); rim.rotation.z = Math.PI/2; wg.add(rim);
-            wg.position.set(side * 0.85, 0.4, 2.7); wg.castShadow = true;
-            group.add(wg);
-        }
-
-    } else if (kind === 'tank') {
-        // ЦИСТЕРНА: горизонтальный цилиндр-бочка с обручами
-        body = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 2.8, 20), bodyMat);
-        body.rotation.x = Math.PI / 2;
-        body.position.set(0, 1.2, 1.1);
-        body.castShadow = true; body.name = 'body';
-        group.add(body);
-        // торцевые крышки
-        [(-0.3), (2.5)].forEach(z => {
-            const cap = new THREE.Mesh(new THREE.SphereGeometry(0.85, 16, 12, 0, Math.PI*2, 0, Math.PI/2), bodyMat);
-            cap.rotation.x = z < 1 ? -Math.PI/2 : Math.PI/2;
-            cap.position.set(0, 1.2, z); group.add(cap);
-        });
-        // обручи
-        [0.2, 1.1, 2.0].forEach(z => {
-            const ring = new THREE.Mesh(new THREE.TorusGeometry(0.87, 0.05, 8, 20), steel);
-            ring.position.set(0, 1.2, z); group.add(ring);
-        });
-
-    } else {
-        // БОРТОВОЙ (flatbed): плоская платформа с невысокими бортами
-        const deck = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.12, 2.6), bodyMat);
-        deck.position.set(0, 0.62, 1.1); deck.castShadow = true; deck.name = 'body';
-        group.add(deck);
-        body = deck;
-        // невысокие борта
-        [[-0.84,0],[0.84,0]].forEach(([x]) => {
-            const sideRail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.45, 2.6), bodyMat);
-            sideRail.position.set(x, 0.85, 1.1); group.add(sideRail);
-        });
-        const frontRail = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.6, 0.06), bodyMat);
-        frontRail.position.set(0, 0.92, -0.18); group.add(frontRail);
-    }
-    return body;
 }
 
 // Сбросить КПП/огни машины в исходное состояние (вызывается каждый кадр перед хореографией)
@@ -1297,36 +1204,14 @@ game.bays[0].progressBar = pb0;
 const ROAD_X = 0;            // ось центральной дороги
 const ROAD_LEN_Z0 = 2.5;     // ближний край центральной дороги (у боксов)
 const ROAD_LEN_Z1 = 36;      // дальний край (выезд) — до края карты
-// горизонтальная дорога-«коллектор» на уровне z=QROAD_Z: справа очередь, слева — съезды к боксам
-const QROAD_Z = 7.5;         // глубина коллектора
-const QROAD_X0 = -8.5;       // левый край (покрывает все боксы, до x≈-6.8)
+// боковая дорога очереди (горизонтальная, вдоль +x)
+const QROAD_Z = 7.5;         // на какой глубине идёт дорога очереди
+const QROAD_X0 = -0.5;       // левый край (стык с центральной дорогой)
 const QROAD_X1 = 24;         // правый край (въезд машин в очередь)
 const ROAD_W = 3.4;          // ширина полотна
 const ROAD_HALF = ROAD_W / 2;
-const BAY_CONNECT_Z = ROAD_LEN_Z0; // куда «подходит» съезд от бокса (низ съезда)
-let roadGroup = null;
-const _bayConnectors = new Set(); // у каких bx уже построен съезд
-
-// Построить съезд (вертикальный участок) от бокса с координатой bx к коллектору z=QROAD_Z
-function buildBayConnector(bx) {
-    if (!roadGroup) return;
-    const key = Math.round(bx * 10);
-    if (_bayConnectors.has(key)) return;
-    _bayConnectors.add(key);
-    const asphMat = new THREE.MeshStandardMaterial({ color: 0x2b2b30, roughness: 0.95, metalness: 0.0 });
-    const z0 = BAY_CONNECT_Z, z1 = QROAD_Z;
-    const midZ = (z0 + z1) / 2, lenZ = Math.abs(z1 - z0) + ROAD_W; // +ширина, чтобы слиться с коллектором
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, lenZ), asphMat);
-    m.rotation.x = -Math.PI / 2; m.position.set(bx, 0.02, midZ); m.receiveShadow = true; roadGroup.add(m);
-    // осевая разметка съезда
-    for (let z = z0 + 0.4; z <= z1 - ROAD_HALF; z += 1.3) {
-        const d = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.7), new THREE.MeshStandardMaterial({ color: 0xd8c84a, roughness: 0.8 }));
-        d.rotation.x = -Math.PI / 2; d.position.set(bx, 0.03, z); roadGroup.add(d);
-    }
-}
 (function buildRoad() {
     const road = new THREE.Group();
-    roadGroup = road;
     const asphMat = new THREE.MeshStandardMaterial({ color: 0x2b2b30, roughness: 0.95, metalness: 0.0 });
     const mkAsphalt = (w, l, x, z, horiz) => {
         const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), asphMat);
@@ -1358,29 +1243,29 @@ function buildBayConnector(bx) {
         sideSeg(ROAD_X + x, QROAD_Z + ROAD_HALF + 0.2, ROAD_X + x, ROAD_LEN_Z1);
     });
 
-    // --- горизонтальный коллектор (очередь справа, съезды к боксам слева) ---
+    // --- боковая дорога очереди (уходит вправо) ---
     const qMidX = (QROAD_X0 + QROAD_X1) / 2, qLenX = QROAD_X1 - QROAD_X0;
     mkAsphalt(ROAD_W, qLenX, qMidX, QROAD_Z, true);
     for (let x = QROAD_X0 + 0.8; x <= QROAD_X1 - 0.5; x += 1.4) if (!inCross(x, QROAD_Z)) dash(x, QROAD_Z, true);
-    // только дальняя боковая линия коллектора (ближняя убрана — к ней примыкают съезды боксов)
-    sideSeg(QROAD_X0, QROAD_Z - 1.6, QROAD_X1, QROAD_Z - 1.6);
+    // боковые линии боковой дороги — разрывая на перекрёстке
+    [-1.6, 1.6].forEach(z => {
+        sideSeg(ROAD_X + ROAD_HALF + 0.2, QROAD_Z + z, QROAD_X1, QROAD_Z + z);
+    });
 
     scene.add(road);
-
-    // съезды для уже существующих боксов
-    if (typeof game !== 'undefined' && game.bays) game.bays.forEach(b => { if (b.mesh) buildBayConnector(b.mesh.position.x); });
 })();
 
 
 // ==================== ЛАВОЧКА У ПРИСТРОЙКИ (свободные работники отдыхают тут) ====================
 // Простая скамейка перед левой пристройкой, под вывеской «Курилка» на стене.
-const SMOKE_AREA = { x: -11.5, z: 3.0 };
+const SMOKE_AREA = { x: -6.2, z: -2.0 };
 const smokeSpots = []; // куда садятся/встают свободные механики
-let smokingAreaGroup = null;
 function createSmokingArea() {
-    // фиксированное место слева, в стороне от боксов (боксы x=-6.8..3.4) и дорог
-    if (smokingAreaGroup) { scene.remove(smokingAreaGroup); smokingAreaGroup = null; }
-    smokeSpots.length = 0;
+    // если здание уже знает координаты фасада пристройки — используем их
+    if (garageBuildingMesh && garageBuildingMesh.userData.annexBenchX != null) {
+        SMOKE_AREA.x = garageBuildingMesh.userData.annexBenchX;
+        SMOKE_AREA.z = garageBuildingMesh.userData.annexFrontZ + 0.25; // лавка вплотную к фасаду под вывеской
+    }
     const g = new THREE.Group();
     const woodDark = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.8 });
     const woodLight = new THREE.MeshStandardMaterial({ color: 0x9c7a4d, roughness: 0.8 });
@@ -1396,22 +1281,21 @@ function createSmokingArea() {
     bin.position.set(1.85, 0.22, 0.2); bin.castShadow = true; g.add(bin);
     g.position.set(SMOKE_AREA.x, 0, SMOKE_AREA.z);
     scene.add(g);
-    smokingAreaGroup = g;
     // позиции для рабочих: сидят на лавке (лицом к камере) + стоят рядом
-    smokeSpots.push({ x: SMOKE_AREA.x - 1.0, z: SMOKE_AREA.z + 0.15, sit: true });
-    smokeSpots.push({ x: SMOKE_AREA.x - 0.3, z: SMOKE_AREA.z + 0.15, sit: true });
-    smokeSpots.push({ x: SMOKE_AREA.x + 0.4, z: SMOKE_AREA.z + 0.15, sit: true });
-    smokeSpots.push({ x: SMOKE_AREA.x + 1.1, z: SMOKE_AREA.z + 0.15, sit: true });
-    smokeSpots.push({ x: SMOKE_AREA.x - 1.9, z: SMOKE_AREA.z + 0.7, sit: false });
-    smokeSpots.push({ x: SMOKE_AREA.x + 1.9, z: SMOKE_AREA.z + 0.8, sit: false });
-    for (let i = 0; i < 12; i++) smokeSpots.push({ x: SMOKE_AREA.x - 2.2 + (i*0.45), z: SMOKE_AREA.z + 1.3, sit: false });
+    smokeSpots.push({ x: SMOKE_AREA.x - 1.0, z: SMOKE_AREA.z + 0.12, sit: true });
+    smokeSpots.push({ x: SMOKE_AREA.x - 0.3, z: SMOKE_AREA.z + 0.12, sit: true });
+    smokeSpots.push({ x: SMOKE_AREA.x + 0.4, z: SMOKE_AREA.z + 0.12, sit: true });
+    smokeSpots.push({ x: SMOKE_AREA.x + 1.1, z: SMOKE_AREA.z + 0.12, sit: true });
+    smokeSpots.push({ x: SMOKE_AREA.x - 1.8, z: SMOKE_AREA.z + 0.5, sit: false });
+    smokeSpots.push({ x: SMOKE_AREA.x + 1.8, z: SMOKE_AREA.z + 0.55, sit: false });
+    for (let i = 0; i < 12; i++) smokeSpots.push({ x: SMOKE_AREA.x - 2.0 + (i*0.4), z: SMOKE_AREA.z + 0.9, sit: false });
 }
 createSmokingArea();
 
 // Пул фигурок «отдыхающих» работников в курилке
 // ==================== ШНЫРЬ (проверяющий с планшетом) ====================
 let foreman = null;
-const foremanState = { target: null, timer: 0, checkBay: null, checkTimer: 0, message: '', route: null, routeIdx: 0, holdLeft: 0, curWp: null, arrived: false };
+const foremanState = { target: null, timer: 0, checkBay: null, checkTimer: 0, message: '' };
 
 function createForeman() {
     const g = new THREE.Group();
@@ -1440,148 +1324,64 @@ function createForeman() {
     return g;
 }
 
-// Маршрут обхода вокруг машины в боксе: точки + поза (заглянуть под колесо / выглянуть из-за угла)
-function buildForemanRoute(bay) {
-    const bx = bay.mesh.position.x, bz = bay.mesh.position.z;
-    // машина стоит примерно в (bx, bz+0.8), длиной ~4 (нос к -z), шириной ~1.7
-    const cz = bz + 0.8;
-    return [
-        { x: bx + 1.55, z: cz + 1.7, pose: 'walk', face: { x: bx, z: cz } },                  // подходит сбоку сзади
-        { x: bx + 1.25, z: cz + 0.4, pose: 'crouch', face: { x: bx, z: cz + 0.4 }, hold: 1.6 }, // присел у заднего колеса — заглядывает вниз
-        { x: bx + 1.25, z: cz - 1.0, pose: 'crouch', face: { x: bx, z: cz - 1.0 }, hold: 1.4 }, // присел у переднего колеса
-        { x: bx + 1.5,  z: cz - 2.2, pose: 'peek', face: { x: bx, z: cz - 2.6 }, hold: 1.8 },   // выглядывает из-за переднего угла
-        { x: bx - 1.5,  z: cz - 2.2, pose: 'peek', face: { x: bx, z: cz - 2.6 }, hold: 1.6 },   // обошёл — из-за другого переднего угла
-        { x: bx - 1.25, z: cz + 0.4, pose: 'crouch', face: { x: bx, z: cz + 0.4 }, hold: 1.5 }, // присел у колеса с дальней стороны
-        { x: bx - 1.5,  z: cz + 2.0, pose: 'peek', face: { x: bx, z: cz + 2.4 }, hold: 1.4 },   // выглянул из-за заднего угла
-    ];
-}
-
 function foremanPickTarget() {
-    // обходит занятые боксы; иногда заглядывает к курилке (ловить халявщиков)
+    // ходит между занятыми боксами и иногда к курилке (ловить халявщиков)
     const busyBays = game.bays.filter(b => b.order);
-    if (busyBays.length && Math.random() < 0.85) {
+    if (busyBays.length && Math.random() < 0.8) {
         const bay = busyBays[Math.floor(Math.random() * busyBays.length)];
         foremanState.checkBay = bay;
-        foremanState.route = buildForemanRoute(bay);
-        foremanState.routeIdx = 0;
-        return foremanState.route[0];
+        return { x: bay.mesh.position.x + 1.8, z: bay.mesh.position.z + 1.2 };
     }
     foremanState.checkBay = null;
-    foremanState.route = null;
     // к курилке — проверить, не отлынивают ли
-    return { x: SMOKE_AREA.x + 1.5, z: SMOKE_AREA.z + 1.6, pose: 'walk' };
-}
-
-function setForemanPose(pose, faceX, faceZ, now) {
-    const legL = foreman.getObjectByName('legL'), legR = foreman.getObjectByName('legR');
-    const body = foreman.getObjectByName('body');
-    const arm = foreman.getObjectByName('arm');
-    // развернуться лицом к машине
-    if (faceX != null) {
-        const fdx = faceX - foreman.position.x, fdz = faceZ - foreman.position.z;
-        if (Math.hypot(fdx, fdz) > 0.01) foreman.rotation.y = Math.atan2(fdx, fdz);
-    }
-    if (pose === 'crouch') {
-        // присел и заглядывает вниз (под колесо): корпус ниже и слегка наклонён
-        foreman.position.y = -0.2;
-        foreman.rotation.x = 0.35;
-        if (legL) legL.rotation.x = -1.1;
-        if (legR) legR.rotation.x = -1.1;
-        if (arm) arm.rotation.x = -0.4 + Math.sin(now * 0.006) * 0.12;
-    } else if (pose === 'peek') {
-        // выглядывает из-за угла: чуть наклонился вбок, подсматривает
-        foreman.position.y = 0;
-        foreman.rotation.x = 0;
-        foreman.rotation.z = Math.sin(now * 0.004) * 0.18 + 0.12;
-        if (legL) legL.rotation.x = 0;
-        if (legR) legR.rotation.x = 0;
-        if (arm) arm.rotation.x = -0.3;
-    } else {
-        foreman.position.y = 0;
-        foreman.rotation.x = 0;
-        foreman.rotation.z = 0;
-    }
+    return { x: SMOKE_AREA.x + 1.5, z: SMOKE_AREA.z + 1.6 };
 }
 
 function updateForeman(delta, now) {
     if (!foreman) foreman = createForeman();
     foremanState.timer -= delta;
-    // если стоим на точке маршрута — выдерживаем паузу (поза), потом идём к следующей
-    if (foremanState.holdLeft > 0) {
-        foremanState.holdLeft -= delta;
-        const wp = foremanState.curWp;
-        if (wp) setForemanPose(wp.pose, wp.face ? wp.face.x : null, wp.face ? wp.face.z : null, now);
-        if (foremanState.holdLeft <= 0) advanceForemanRoute();
-        return;
-    }
-    // выбираем новую цель / маршрут
+    // выбираем новую цель
     if (!foremanState.target || foremanState.timer <= 0) {
         foremanState.target = foremanPickTarget();
-        foremanState.timer = 7 + Math.random() * 5;
+        foremanState.timer = 5 + Math.random() * 4;
         foremanState.arrived = false;
     }
     const t = foremanState.target;
     const dx = t.x - foreman.position.x, dz = t.z - foreman.position.z;
     const dist = Math.hypot(dx, dz);
-    if (dist > 0.12) {
+    if (dist > 0.1) {
         const sp = Math.min(dist, delta * 2.2);
         foreman.position.x += (dx / dist) * sp;
         foreman.position.z += (dz / dist) * sp;
-        foreman.rotation.x = 0; foreman.rotation.z = 0; foreman.position.y = 0;
         foreman.rotation.y = Math.atan2(dx, dz);
+        // шагает
         const legL = foreman.getObjectByName('legL'), legR = foreman.getObjectByName('legR');
         if (legL) legL.rotation.x = Math.sin(now * 0.012) * 0.5;
         if (legR) legR.rotation.x = -Math.sin(now * 0.012) * 0.5;
-    } else {
-        // пришли в точку
-        const legL = foreman.getObjectByName('legL'), legR = foreman.getObjectByName('legR');
-        if (legL) legL.rotation.x = 0; if (legR) legR.rotation.x = 0;
-        if (foremanState.route) {
-            // это точка маршрута обхода — встать в позу и выдержать паузу
-            const wp = foremanState.route[foremanState.routeIdx];
-            foremanState.curWp = wp;
-            foremanState.holdLeft = wp && wp.hold ? wp.hold : 0.4;
-            if (!foremanState.arrived) { foremanState.arrived = true; }
-        } else if (!foremanState.arrived) {
-            foremanState.arrived = true;
-            foremanInspect();
-        }
+    } else if (!foremanState.arrived) {
+        foremanState.arrived = true;
+        foremanInspect();
     }
-}
-
-// Перейти к следующей точке маршрута обхода (или закончить обход)
-function advanceForemanRoute() {
-    foreman.rotation.x = 0; foreman.rotation.z = 0; foreman.position.y = 0;
-    if (!foremanState.route) return;
-    foremanState.routeIdx++;
-    if (foremanState.routeIdx >= foremanState.route.length) {
-        // обход завершён — иногда роняет нейтральную фразу, выбирает новую цель в след. кадре
-        if (Math.random() < 0.35) {
-            const watch = ['📋 Шнырь: осмотрел машину со всех сторон.', '📋 Шнырь: проверяю качество по кругу.', '📋 Шнырь: заглянул под колёса — смотрим дальше.'];
-            toast(watch[Math.floor(Math.random() * watch.length)], '#8b949e', 3000);
-        }
-        foremanState.route = null;
-        foremanState.target = null;
-        foremanState.timer = 0;
-        return;
-    }
-    foremanState.target = foremanState.route[foremanState.routeIdx];
-    foremanState.arrived = false;
 }
 
 function foremanInspect() {
     const bay = foremanState.checkBay;
     if (bay && bay.order) {
-        // Шнырь только наблюдает за работой; вердикт (штраф/премия) выдаётся в конце ремонта.
-        if (Math.random() < 0.25) {
-            const watch = [
-                '📋 Шнырь: проверяю ход ремонта…',
-                '📋 Шнырь: так, что тут у нас по работам.',
-                '📋 Шнырь: смотрю, всё ли по технологии.',
-                '📋 Шнырь: записал, ждём результат.',
-            ];
-            toast(watch[Math.floor(Math.random() * watch.length)], '#8b949e', 3200);
+        const lvl = serviceLevel();
+        // проверка бокса: на старте брак ловится редко (10%), у топа чаще (35%); премии наоборот
+        const fineChance = 0.10 + lvl * 0.25;
+        const bonusChance = 0.35 - lvl * 0.15;
+        const roll = Math.random();
+        if (roll < fineChance) {
+            const fine = scaledPenalty(40);
+            game.money -= fine;
+            toast(`📋 Шнырь: брак в боксе! Штраф −${fine}💰`, '#f85149');
+        } else if (roll > 1 - bonusChance) {
+            const bonus = 25 + Math.floor(Math.random() * 35);
+            game.money += bonus;
+            toast(`📋 Шнырь: отличная работа! Премия +${bonus}💰`, '#3fb950');
         }
+        updateUI();
     } else {
         // у курилки: если много отдыхающих при живой очереди — ругается (разные фразы, дольше висят)
         if (freeMechanicsCount() >= 2 && game.orders.length > 0 && Math.random() < 0.6) {
@@ -1607,6 +1407,30 @@ function foremanInspect() {
 }
 
 const idleFigures = [];
+// текстура облачка-разговора (рисуем точки «...») 
+let _speechTex = null;
+function speechBubbleTexture() {
+    if (_speechTex) return _speechTex;
+    const cv = document.createElement('canvas'); cv.width = 64; cv.height = 48;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    // скруглённое облачко
+    ctx.beginPath(); ctx.arc(20, 22, 14, 0, Math.PI*2); ctx.arc(40, 18, 16, 0, Math.PI*2); ctx.arc(46, 30, 12, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#444'; // три точки
+    [22, 32, 42].forEach(x => { ctx.beginPath(); ctx.arc(x, 24, 3, 0, Math.PI*2); ctx.fill(); });
+    _speechTex = new THREE.CanvasTexture(cv);
+    return _speechTex;
+}
+function attachSpeechBubble(f) {
+    if (f.userData.bubble) return;
+    const sprite = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.5, 0.38),
+        new THREE.MeshBasicMaterial({ map: speechBubbleTexture(), transparent: true, depthWrite: false })
+    );
+    sprite.position.set(0.18, 1.5, 0);
+    sprite.name = 'bubble'; sprite.visible = false;
+    f.add(sprite); f.userData.bubble = sprite;
+}
 function updateIdleWorkers() {
     const free = freeMechanicsCount();
     // нужное число фигурок в курилке = свободные работники
@@ -1624,8 +1448,11 @@ function updateIdleWorkers() {
             f.rotation.y = 0; // лицом к камере (+z)
             const tool = f.getObjectByName('tool'); if (tool) tool.visible = false; // в курилке без инструмента
             f.userData.idle = true; f.userData.sit = spot.sit; f.userData.phase = k * 0.7;
+            f.userData.spotX = spot.x; f.userData.spotZ = spot.z;
+            attachSpeechBubble(f);
         } else {
             f.visible = false;
+            if (f.userData.bubble) f.userData.bubble.visible = false;
         }
     });
 }
@@ -1634,7 +1461,7 @@ function updateIdleWorkers() {
 let wasteGroup = null;
 const wasteTankMeshes = []; // по одной модели на бочку
 const WASTE_H = 1.1, WASTE_BOTTOM = 0.15;
-const WASTE_BASE = { x: -10.5, z: -2.2 }, WASTE_DX = 1.5;
+const WASTE_BASE = { x: -10, z: 6 }, WASTE_DX = 1.7;
 
 function buildBarrelMesh(index, level) {
     const g = new THREE.Group();
@@ -1920,19 +1747,6 @@ function buildSegments(order) {
     return segs;
 }
 
-// Оценка реального времени ремонта в секундах (как заполняется полоса прогресса).
-// Полный таймлайн (диагностика + запчасти + работы) с поправкой на общий темп игры.
-function estimatedSeconds(order) {
-    if (!order.segments) buildSegments(order);
-    // делим на скорость лучшего подходящего механика (+ профильный бонус) — честная оценка
-    const w = order.mainWork || orderWorks(order)[0];
-    const mech = getBestMechanicFor(w);
-    let sp = (mech ? mech.speed : 1.0);
-    if (mech && mech.specialty === w.category) sp *= 1.3;
-    sp = Math.max(0.4, sp);
-    return Math.round(order.timelineTotal / (GAME_SPEED * sp));
-}
-
 // Текущий сегмент таймлайна и локальный прогресс
 function currentSegment(order) {
     if (!order.segments) buildSegments(order);
@@ -1988,7 +1802,7 @@ function layoutQueue() {
         const s = queueSlot(i);
         if (order.truckMesh) {
             const tm = order.truckMesh;
-            applyTruckScale(tm);
+            tm.scale.setScalar(QUEUE_SCALE);
             tm.rotation.y = -Math.PI / 2; // нос влево (-x), к центральной дороге/боксам
             const d = Math.abs(tm.position.z - s.z) + Math.abs(tm.position.x - s.x);
             if (d > 0.05) animateMove(tm, new THREE.Vector3(s.x, 0, s.z), 700);
@@ -2130,20 +1944,31 @@ function ensureBayProps(bay) {
     const bx = bay.mesh.position.x, bz = bay.mesh.position.z + 0.8; // центр машины в боксе
     const P = {};
 
-    // Кран (портал с крюком) — для съёма двигателя
+    // Кран-балка для съёма двигателя — ставится над моторным отсеком (перед машины, -z)
     const crane = new THREE.Group();
     const craneMat = new THREE.MeshStandardMaterial({ color: 0xddaa22, roughness: 0.4, metalness: 0.7 });
-    [-1.25, 1.25].forEach(x => {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 3.0, 0.12), craneMat);
-        post.position.set(x, 1.5, 0); crane.add(post);
+    [-1.0, 1.0].forEach(x => {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, 3.2, 0.14), craneMat);
+        post.position.set(x, 1.6, 0); crane.add(post);
+        // опорные лапы
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.7), craneMat);
+        foot.position.set(x, 0.05, 0); crane.add(foot);
     });
-    const beam = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.14, 0.14), craneMat);
-    beam.position.y = 3.0; crane.add(beam);
-    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 1, 4), new THREE.MeshBasicMaterial({ color: 0x222222 }));
-    cable.position.set(0, 2.6, 0); cable.name = 'cable'; crane.add(cable);
-    const hook = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.02, 6, 8), new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.8 }));
-    hook.position.set(0, 2.2, 0); hook.name = 'hook'; crane.add(hook);
-    crane.position.set(bx, 0, bz); crane.visible = false; scene.add(crane); P.crane = crane;
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.16, 0.16), craneMat);
+    beam.position.y = 3.2; crane.add(beam);
+    // лебёдка-каретка на балке
+    const winch = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.3), new THREE.MeshStandardMaterial({ color: 0x555, metalness: 0.7 }));
+    winch.position.set(0, 3.05, 0); crane.add(winch);
+    // трос (масштабируем по высоте — верх закреплён на балке)
+    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 1, 5), new THREE.MeshBasicMaterial({ color: 0x111111 }));
+    cable.name = 'cable'; crane.add(cable);
+    // крюк
+    const hook = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.025, 6, 10), new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.8 }));
+    hook.name = 'hook'; crane.add(hook);
+    // кран стоит над передней частью машины (моторный отсек), не по центру
+    crane.position.set(bx, 0, bz - 1.0);
+    crane.visible = false; scene.add(crane); P.crane = crane;
+    P.craneCable = cable; P.craneHook = hook; P.craneBeamY = 3.2;
 
     // Тележка с КПП
     const trolley = new THREE.Group();
@@ -2192,19 +2017,15 @@ function ensureBayProps(bay) {
 
 function resetTruckParts(truck) {
     const cab = truck.getObjectByName('cabinPivot');
-    if (cab) { cab.rotation.x = 0; cab.position.y = cab.userData.baseY != null ? cab.userData.baseY : 0.55; }
-    const hood = truck.getObjectByName('hoodPivot');
-    if (hood) { hood.rotation.x = 0; }
+    if (cab) { cab.rotation.x = 0; cab.position.y = 0.55; }
     const eng = truck.getObjectByName('engine');
-    if (eng) { eng.visible = false; if (eng.userData.base) eng.position.copy(eng.userData.base); }
-    const nWheels = truck.userData.wheelCount || 6;
-    for (let i = 0; i < nWheels; i++) {
+    if (eng) { eng.visible = false; eng.position.set(0, 0.7, -1.0); }
+    for (let i = 0; i < 6; i++) {
         const w = truck.getObjectByName('wheel' + i);
         if (w && w.userData.base) { w.position.copy(w.userData.base); w.visible = true; w.rotation.x = 0; w.rotation.z = 0; }
     }
     const cabin = truck.getObjectByName('cabin');
-    if (cabin && truck.userData.cabinBase) { cabin.scale.set(1,1,1); cabin.rotation.z = 0; cabin.position.copy(truck.userData.cabinBase); }
-    else if (cabin) { cabin.scale.set(1,1,1); cabin.rotation.z = 0; }
+    if (cabin) { cabin.scale.set(1,1,1); cabin.rotation.z = 0; }
     resetTruckExtras(truck);
 }
 
@@ -2221,10 +2042,9 @@ function applyPaint(truck, factor, targetHex) {
 function applyDent(truck, dent) {
     const cabin = truck.getObjectByName('cabin');
     if (cabin) {
-        const baseZ = truck.userData.cabinBase ? truck.userData.cabinBase.z : 0.65;
         cabin.scale.set(1 - 0.18*dent, 1 - 0.12*dent, 1 - 0.35*dent);
         cabin.rotation.z = 0.12 * dent;
-        cabin.position.z = baseZ + 0.18 * dent;
+        cabin.position.z = 0.65 + 0.18 * dent;
     }
 }
 
@@ -2329,6 +2149,9 @@ function applyChoreography(bay, now) {
     const P = ensureBayProps(bay);
     P.crane.visible = false; P.trolley.visible = false; P.drain.visible = false;
     P.spray.visible = false; P.scan.visible = false; P.lamps.forEach(l => l.visible = false);
+    // сброс крана в дефолт (над моторным отсеком), трос свёрнут
+    P.crane.position.z = (bay.mesh.position.z + 0.8) - 1.0;
+    if (P.craneCable) P.craneCable.scale.y = 0.05;
     resetTruckParts(truck);
 
     const cs = currentSegment(order);
@@ -2366,14 +2189,7 @@ function applyChoreography(bay, now) {
         return;
     }
     const cab = truck.getObjectByName('cabinPivot');
-    const hood = truck.getObjectByName('hoodPivot');
     const eng = truck.getObjectByName('engine');
-    const isCar = !!truck.userData.car;
-    // Открыть моторный отсек: у легковых/газели поднимается КАПОТ, у грузовых откидывается КАБИНА.
-    const openEngineBay = (amount) => {
-        if (isCar) { if (hood) hood.rotation.x = -amount; } // капот вверх
-        else { if (cab) cab.rotation.x = -amount; }          // кабина вперёд
-    };
 
     // --- покраска: насколько уже покрашено (учёт пройденных этапов) ---
     if (order.paintColor) {
@@ -2406,26 +2222,37 @@ function applyChoreography(bay, now) {
 
     switch (a) {
         case 'oil':
-            openEngineBay(upDown(isCar ? 1.2 : 0.4));
+            if (cab) cab.rotation.x = -upDown(0.4);
             P.drain.visible = true;
             break;
         case 'engine':
         case 'fuel':
-            openEngineBay(upDown(isCar ? 1.4 : 0.75));
-            if (eng) eng.visible = p < 0.85; // двигатель виден, пока отсек открыт
+            if (cab) cab.rotation.x = -upDown(0.75);
+            if (eng) eng.visible = p < 0.85; // двигатель виден, пока кабина поднята
             if (a === 'fuel') P.drain.visible = true;
             break;
         case 'engineCrane': {
-            openEngineBay(upDown(isCar ? 1.5 : 0.9, 0.2, 0.85));
-            if (eng) {
-                eng.visible = true;
-                const lift = p < 0.4 ? easeIO(p/0.4) : p < 0.6 ? 1 : easeIO((1-p)/0.4);
-                const base = eng.userData.base ? eng.userData.base.y : 0.7;
-                eng.position.y = base + lift * (isCar ? 1.2 : 1.7);
-            }
+            // Кабина откинута, двигатель поднимается краном — крюк и трос следуют за двигателем
+            if (cab) cab.rotation.x = -upDown(0.9, 0.2, 0.85);
             P.crane.visible = true;
             P.drain.visible = true;
-            const hook = P.crane.getObjectByName('hook'); if (hook) hook.position.y = 2.4 - (p<0.6?easeIO(Math.min(1,p/0.4)):easeIO((1-p)/0.4))*0.6;
+            // высота подъёма двигателя (0 — на месте, 1 — поднят)
+            const lift = p < 0.4 ? easeIO(p / 0.4) : p < 0.6 ? 1 : easeIO((1 - p) / 0.4);
+            const engBaseY = 0.7;          // двигатель в покое (локально)
+            const engTopY = engBaseY + 1.9; // поднятый
+            const engY = engBaseY + (engTopY - engBaseY) * lift;
+            if (eng) { eng.visible = true; eng.position.set(0, engY, -1.0); }
+            // крюк ставим чуть выше двигателя (в координатах крана: кран стоит над двигателем)
+            // двигатель локально z=-1.0 у машины, машина в боксе → кран уже стоит на bz-1.0, значит крюк по x=0,z=0 крана
+            const hookY = engY + 0.55; // крюк над двигателем
+            if (P.craneHook) P.craneHook.position.set(0, hookY, 0);
+            // трос: от балки (craneBeamY) до крюка — тянем масштабом
+            if (P.craneCable) {
+                const top = P.craneBeamY, bottom = hookY;
+                const len = Math.max(0.05, top - bottom);
+                P.craneCable.position.set(0, (top + bottom) / 2, 0);
+                P.craneCable.scale.y = len;
+            }
             break;
         }
         case 'gearbox': {
@@ -2491,29 +2318,59 @@ function applyChoreography(bay, now) {
             break;
         }
         case 'tires': {
-            // Шиномонтаж: колесо снимается, КАТИТСЯ к станку, крутится при бортировке, катится назад.
+            // Полный цикл: 1) снять колесо со ступицы, 2) докатить к станку, 3) бортировка (крутится),
+            // 4) прикатить назад, 5) надеть. Станок — bay.equip.tire (если куплен).
             const seg = (lo, hi) => Math.max(0, Math.min(1, (p - lo) / (hi - lo)));
-            const roll = easeIO(seg(0.08, 0.30));   // выкатываем к станку
-            const back = easeIO(seg(0.74, 0.95));    // катим обратно
-            const away = Math.max(roll - back, 0);    // 0 — на месте, 1 — у станка
-            const working = p > 0.34 && p < 0.72;     // бортировка на станке
+            const stationX = bay.mesh.position.x + 1.1; // где стоит станок
+            const stationZ = bay.mesh.position.z - 1.7;
             for (const wi of [0, 1]) {
                 const w = truck.getObjectByName('wheel' + wi);
                 if (!w || !w.userData.base) continue;
-                const sx = (wi === 0 ? -1 : 1);
                 const bx = w.userData.base.x, by = w.userData.base.y, bz = w.userData.base.z;
-                // катим вперёд и чуть в сторону к станку (колесо стоит вертикально)
-                const dz = 2.2 * away;
-                w.position.x = bx + sx * 0.5 * away;
-                w.position.y = by;
-                w.position.z = bz + dz;
-                w.rotation.z = 0;
-                // качение во время движения; на станке — вращение бортировки
-                if (working) w.rotation.x = now * 0.02;
-                else w.rotation.x = dz * 1.6; // имитация качения (поворот пропорц. пути)
+                if (wi === 1) {
+                    // правое колесо просто снимают и кладут рядом (чтоб видно, что разбирают)
+                    const drop = easeIO(seg(0.05, 0.2)) - easeIO(seg(0.85, 0.97));
+                    w.position.set(bx + 0.5 * Math.max(0, drop), by - 0.3 * Math.max(0, drop), bz);
+                    w.rotation.z = (Math.PI / 2) * Math.max(0, drop);
+                    continue;
+                }
+                // левое колесо — главный «актёр»: едет к станку
+                const off = easeIO(seg(0.05, 0.18));   // снято со ступицы
+                const toSt = easeIO(seg(0.18, 0.34));  // докатилось до станка
+                const back = easeIO(seg(0.66, 0.82));  // вернулось к ступице
+                const on = easeIO(seg(0.82, 0.96));    // надето
+                // позиция: ступица → станок → ступица
+                let px, py, pz, roll = 0, lay = 0;
+                if (p < 0.34) {
+                    // от ступицы к станку (катится стоя)
+                    const t = toSt;
+                    px = bx + (stationX - bx) * t;
+                    pz = bz + (stationZ - bz) * t;
+                    py = by;
+                    roll = -t * 12; // катится
+                    lay = off * (1 - toSt); // чуть наклон при снятии
+                } else if (p < 0.66) {
+                    // на станке: лежит на штыре, крутится при бортировке
+                    px = stationX; pz = stationZ; py = 0.7;
+                    lay = 1; // лёжа на станке
+                    roll = now * 0.02; // крутится
+                } else {
+                    // обратно к ступице
+                    const t = back;
+                    px = stationX + (bx - stationX) * t;
+                    pz = stationZ + (bz - stationZ) * t;
+                    py = 0.7 + (by - 0.7) * t;
+                    roll = t * 12;
+                    lay = 1 - on;
+                }
+                w.position.set(px, py, pz);
+                w.rotation.set(lay * Math.PI / 2, 0, 0); // lay=1 → лежит плашмя на станке
+                w.rotation.x += roll * 0.05;
             }
-            // искры/работа на станке
-            if (working && Math.random() < 0.05) { const s = createSparkEffect(new THREE.Vector3(bay.mesh.position.x, 0.5, bay.mesh.position.z + 2.6)); activeSparks.push(s); }
+            // искры/работа у станка в фазе бортировки
+            if (p > 0.34 && p < 0.66 && Math.random() < 0.05) {
+                const s = createSparkEffect(new THREE.Vector3(stationX, 0.8, stationZ)); activeSparks.push(s);
+            }
             break;
         }
         case 'scan':
@@ -2532,7 +2389,7 @@ function applyChoreography(bay, now) {
             break;
         }
         case 'electric':
-            openEngineBay(isCar ? 0.7 : 0.2);
+            if (cab) cab.rotation.x = -0.2;
             if (Math.random() < 0.04) { const s = createSparkEffect(new THREE.Vector3(bay.mesh.position.x, 1.2, bay.mesh.position.z + 0.2)); activeSparks.push(s); }
             break;
         case 'rihtovka':
@@ -2544,15 +2401,22 @@ function applyChoreography(bay, now) {
             P.sprayParts.forEach(s => { s.material.color.setHex(order.paintColor || 0xffffff); s.material.opacity = 0.25 + 0.35*Math.random(); });
             break;
         case 'cabinSwap': {
-            // Снимаем кабину краном вверх → меняем → опускаем новую (другого цвета)
+            // Снимаем кабину краном вверх → меняем → опускаем новую. Кран сдвинут к кабине.
             P.crane.visible = true;
-            const lift = (p < 0.5 ? easeIO(p / 0.5) : easeIO((1 - p) / 0.5)) * 2.4;
-            if (cab) { cab.position.y = 0.55 + lift; cab.rotation.x = 0; }
-            const hook = P.crane.getObjectByName('hook');
-            if (hook) hook.position.y = 0.9 + lift;
-            const cable = P.crane.getObjectByName('cable');
-            if (cable) { cable.scale.y = Math.max(0.1, 3.0 - lift); cable.position.y = 3.0 - (3.0 - lift) / 2; }
-            if (p >= 0.5) truck.userData.cabinMat.color.setHex(order.paintColor || 0x335577); // новая кабина
+            // кабина на шарнире z=-1.95, двигатель z=-1.0 → сдвигаем кран к кабине
+            P.crane.position.z = (bay.mesh.position.z + 0.8) - 1.95;
+            const lift = (p < 0.5 ? easeIO(p / 0.5) : easeIO((1 - p) / 0.5)) * 2.0;
+            const cabBaseY = 0.55;
+            if (cab) { cab.position.y = cabBaseY + lift; cab.rotation.x = 0; }
+            // крюк над кабиной (кабина локально на шарнире z=0.65 от pivot, но pivot уже под краном)
+            const hookY = cabBaseY + lift + 1.0;
+            if (P.craneHook) P.craneHook.position.set(0, hookY, 0);
+            if (P.craneCable) {
+                const top = P.craneBeamY, bottom = hookY;
+                P.craneCable.position.set(0, (top + bottom) / 2, 0);
+                P.craneCable.scale.y = Math.max(0.05, top - bottom);
+            }
+            if (p >= 0.5) truck.userData.cabinMat.color.setHex(order.paintColor || 0x335577);
             if (Math.random() < 0.05) { const s = createSparkEffect(new THREE.Vector3(bay.mesh.position.x, 1.5, bay.mesh.position.z + 0.2)); activeSparks.push(s); }
             break;
         }
@@ -2596,12 +2460,12 @@ function clearBayProps(bay) {
     if (P.lamps) P.lamps.forEach(l => l.visible = false);
 }
 
-// Интервал автопоиска: на 1 уровне приёмщика заказы редки (28с); прокачка ускоряет вдвое+
+// Интервал автопоиска: 15с на 1 уровне, быстрее с ростом приёмщика и навыка «поиск клиентов»
 function autoOrderInterval() {
     const lvl = game.receptionist.level;
     const search = game.receptionist.skills.clientSearch || 1;
-    const base = 28 - (lvl - 1) * 1.8 - (search - 1) * 1.4;
-    return Math.max(6, base);
+    const base = 15 - (lvl - 1) * 1.2 - (search - 1) * 0.8;
+    return Math.max(4, base); // не быстрее 4 секунд
 }
 
 function addNewOrder() {
@@ -2613,7 +2477,7 @@ function addNewOrder() {
     // появляется у правого края боковой дороги и подъезжает к своему месту в колонне
     truck.position.set(QROAD_X1 + 1, 0, QROAD_Z);
     truck.rotation.y = -Math.PI / 2; // нос влево (-x), к боксам
-    applyTruckScale(truck);
+    truck.scale.setScalar(QUEUE_SCALE);
     scene.add(truck);
     order.truckMesh = truck;
     if (order.crashed) applyCrashLook(truck, true);     // после ДТП — битая, без колеса
@@ -2637,20 +2501,32 @@ function assignOrderToBay(orderId, bayId) {
     if (order.smokeSystem) { scene.remove(order.smokeSystem.group); order.smokeSystem = null; }
     if (order.truckMesh) {
         const tm = order.truckMesh;
-        applyTruckScale(tm); // габаритный масштаб в боксе
+        tm.scale.setScalar(1);
         const bx = bay.mesh.position.x;
         const target = bay.mesh.position.clone();
         target.y = 0;
         target.z += 0.8;
-        // едем по коллектору к съезду нужного бокса, затем вверх в бокс
-        const collectorPoint = new THREE.Vector3(bx, 0, QROAD_Z);
-        tm.rotation.y = -Math.PI / 2; // вдоль коллектора (нос -x)
-        animateMove(tm, collectorPoint, 700, () => {
-            tm.rotation.y = 0; // поворот носом к боксу (-z)
-            animateMove(tm, target, 800, () => {
-                const sp = target.clone(); sp.y += 2.5;
-                order.sparkSystem = createSparkEffect(sp);
-                activeSparks.push(order.sparkSystem);
+        // Маршрут заезда задом:
+        // 1) едем по боковой дороге к перекрёстку (нос влево),
+        // 2) выезжаем на центральную дорогу напротив своего бокса (нос к зданию),
+        // 3) проезжаем мимо бокса вперёд (нос -z), затем СДАЁМ ЗАДОМ в бокс по прямой.
+        const junction = new THREE.Vector3(ROAD_X, 0, QROAD_Z);   // перекрёсток
+        const lineUp = new THREE.Vector3(bx, 0, QROAD_Z);          // встали напротив бокса на дороге
+        const aheadOfBay = new THREE.Vector3(bx, 0, target.z - 2.6); // проехали вперёд за бокс (нос к зданию)
+        tm.rotation.y = -Math.PI / 2; // нос влево по боковой дороге
+        animateMove(tm, junction, 600, () => {
+            // поворот: нос к зданию (-z)
+            tm.rotation.y = 0;
+            animateMove(tm, lineUp, 350, () => {
+                // проезжаем вперёд мимо бокса (готовимся сдавать задом)
+                animateMove(tm, aheadOfBay, 700, () => {
+                    // СДАЁМ ЗАДОМ: едем назад (+z) в бокс, ориентация носом к зданию сохраняется
+                    animateMove(tm, target, 850, () => {
+                        const sp = target.clone(); sp.y += 2.5;
+                        order.sparkSystem = createSparkEffect(sp);
+                        activeSparks.push(order.sparkSystem);
+                    });
+                });
             });
         });
     }
@@ -2692,9 +2568,6 @@ function addReceptionistExp(amount) {
 function completeOrder(bay, order) {
     let moneyEarned = order.money;
     if (game.isNight) moneyEarned = Math.floor(moneyEarned * 1.3);
-    // Приёмщик повышает выручку: +4% за уровень и +6% за уровень навыка «Допродажи».
-    const recMult = 1 + 0.04 * (game.receptionist.level - 1) + 0.06 * ((game.receptionist.skills.upsell || 1) - 1);
-    moneyEarned = Math.floor(moneyEarned * recMult);
     moneyEarned = Math.floor(moneyEarned * game.prestigeMult);
     game.money += moneyEarned;
     game.moneyEarnedToday += moneyEarned;
@@ -2718,26 +2591,6 @@ function completeOrder(bay, order) {
     let waste = 0;
     for (const w of orderWorks(order)) if (w.oil) waste += 16 + w.difficulty * 3;
     if (waste > 0) addWaste(waste);
-
-    // 📋 Вердикт шныря по готовой машине — один раз за заказ (штраф ИЛИ премия, либо без замечаний)
-    {
-        const lvl = serviceLevel();
-        const fineChance = 0.10 + lvl * 0.25;   // на старте брак ловят редко, у топа чаще
-        const bonusChance = 0.35 - lvl * 0.15;  // премии наоборот
-        const roll = Math.random();
-        if (roll < fineChance) {
-            const fine = scaledPenalty(40);
-            game.money -= fine;
-            setTimeout(() => toast(`📋 Шнырь: принял работу — нашёл брак! Штраф −${fine}💰`, '#f85149', 4500), 600);
-        } else if (roll > 1 - bonusChance) {
-            const bonus = 25 + Math.floor(Math.random() * 35);
-            game.money += bonus;
-            setTimeout(() => toast(`📋 Шнырь: принял работу — отлично! Премия +${bonus}💰`, '#3fb950', 4500), 600);
-        } else {
-            setTimeout(() => toast('📋 Шнырь: работу принял, замечаний нет.', '#8b949e', 4000), 600);
-        }
-    }
-
     if (order.sparkSystem) { scene.remove(order.sparkSystem.group); activeSparks = activeSparks.filter(s => s !== order.sparkSystem); }
     if (order.truckMesh) driveOutThroughGate(order.truckMesh);
     if (bay.progressBar) bay.progressBar.visible = false;
@@ -2751,18 +2604,16 @@ function completeOrder(bay, order) {
 
 // Машина выезжает из бокса на центральную дорогу и уезжает за карту
 function driveOutThroughGate(truck) {
-    applyTruckScale(truck);
-    const bx = truck.position.x; // бокс, из которого выезжаем
-    // 1) задним ходом/выкатом из бокса вниз на коллектор по своему съезду
-    truck.rotation.y = Math.PI; // нос на +z (к коллектору)
-    const onCollector = new THREE.Vector3(bx, 0, QROAD_Z);
-    animateMove(truck, onCollector, 700, () => {
-        // 2) по коллектору к центральному перекрёстку (x=0)
-        truck.rotation.y = (bx > ROAD_X) ? -Math.PI / 2 : Math.PI / 2; // нос к центру
-        const toCenter = new THREE.Vector3(ROAD_X, 0, QROAD_Z);
-        animateMove(truck, toCenter, Math.max(300, Math.abs(bx) * 120), () => {
-            // 3) по центральной дороге к выезду за карту
-            truck.rotation.y = Math.PI;
+    truck.scale.setScalar(1);
+    // машина стоит носом к зданию (-z). Выезжаем задним ходом на центральную дорогу,
+    // затем разворачиваемся носом на выезд (+z) и едем прямо за карту по центральной дороге.
+    const bx = truck.position.x;
+    const backOut = new THREE.Vector3(bx, 0, ROAD_LEN_Z0 + 2.5); // выкатились задом на дорогу
+    animateMove(truck, backOut, 700, () => {
+        // переезд на ось центральной дороги (если бокс сбоку) и разворот носом на выезд
+        const onAxis = new THREE.Vector3(ROAD_X, 0, ROAD_LEN_Z0 + 3.0);
+        animateMove(truck, onAxis, 350, () => {
+            truck.rotation.y = Math.PI; // нос на выезд (+z)
             const exit = new THREE.Vector3(ROAD_X, 0, ROAD_LEN_Z1 + 6);
             animateMove(truck, exit, 1500, () => disposeObject(truck));
         });
@@ -2789,13 +2640,8 @@ function generateContractOffer() {
     const reward = Math.floor(work.baseMoney * 2.4 * (1 + game.reputation / 100));
     // штраф за срыв: 15% от награды на старте → 50% у топ-сервиса
     const penalty = Math.floor(reward * (0.15 + lvl * 0.35));
-    // дедлайн в РЕАЛЬНЫХ секундах (как идёт полоса прогресса): полный таймлайн / темп игры × запас.
-    const diff = work.difficulty || 1;
-    const diagT = Math.max(4, 4 + diff * 1.2);
-    const partsT = 4 + diff * 0.4;
-    const realRepair = (diagT + partsT + work.baseTime) / GAME_SPEED; // ~реальное время ремонта
-    const generosity = 2.2 - lvl * 0.6; // щедро на старте (×2.2), жёстче у топа (×1.6)
-    const deadline = Math.ceil(realRepair * generosity + 8);
+    // дедлайн: щедрый на старте (×3 + запас), жёстче с ростом уровня
+    const deadline = Math.ceil(work.baseTime * (3.2 - lvl * 1.1) + 25 - lvl * 8);
     const repLoss = Math.round(4 + lvl * 8); // потеря репутации за срыв: 4 → 12
     const company = companies[Math.floor(Math.random() * companies.length)];
     game.contractOffer = { id: Date.now(), companyName: company, work, reward, penalty, deadline, repLoss, timeLeft: 25 };
@@ -2824,7 +2670,6 @@ function acceptContract() {
     if (!game.contractOffer) return;
     const c = game.contractOffer;
     if (game.orders.length >= game.maxOrders) { toast('Нет места в очереди — освободи бокс', '#f85149'); return; }
-    game.contractOffer = null; // снимаем оффер сразу, чтобы не задвоился
     // создаём контрактный заказ как обычный, но с дедлайном, повышенной наградой и штрафом
     const order = generateOrder();
     order.works = [c.work];
@@ -2834,29 +2679,27 @@ function acceptContract() {
     order.money = c.reward;
     order.paintColor = c.work.paint ? PAINT_COLORS[Math.floor(Math.random()*PAINT_COLORS.length)] : null;
     order.dented = !!c.work.dent;
-    order.crashed = (c.work.anim === 'crash'); // флаги строго по контрактной работе
-    order.segments = null; // пересоберётся при загоне в бокс
     order.contract = true;
     order.companyName = c.companyName;
     order.penalty = c.penalty;
-    order.repLoss = c.repLoss;
-    order.deadline = c.deadline;
+    order.deadline = c.deadline;       // секунд на работу после загона в бокс
     order.deadlineLeft = c.deadline;
-    // ставим в очередь точно так же, как обычный заказ (этот путь рабочий)
+    // ставим в очередь, как обычный заказ — заезжает по боковой дороге в полный размер
     const truck = createTruck(order.truckType);
+    const slot = queueSlot(game.orders.length);
     truck.position.set(QROAD_X1 + 1, 0, QROAD_Z);
     truck.rotation.y = -Math.PI / 2;
-    applyTruckScale(truck);
-    if (truck.userData.cabinMat) truck.userData.cabinMat.color.setHex(0xd2991d); // золотой корпус
-    scene.add(truck);
-    order.truckMesh = truck;
+    truck.scale.setScalar(QUEUE_SCALE);
+    // контрактную машину помечаем золотым корпусом
+    if (truck.userData.cabinMat) truck.userData.cabinMat.color.setHex(0xd2991d);
     if (order.crashed) applyCrashLook(truck, true);
     else if (order.dented) applyDent(truck, 1);
-    const s = queueSlot(game.orders.length);
-    animateMove(truck, new THREE.Vector3(s.x, 0, s.z), 1200);
-    order.smokeSystem = createSmokeEffect(new THREE.Vector3(s.x, 0.7, s.z));
+    scene.add(truck);
+    order.truckMesh = truck;
+    animateMove(truck, new THREE.Vector3(slot.x, 0, slot.z), 1200);
+    order.smokeSystem = createSmokeEffect(new THREE.Vector3(slot.x, 0.7, slot.z));
     game.orders.push(order);
-    layoutQueue();
+    game.contractOffer = null;
     toast(`🏢 Контракт принят: ${c.work.icon} ${c.work.name}. Загони в бокс и успей за ${c.deadline}с!`, '#d2991d');
     updateUI();
 }
@@ -3240,7 +3083,7 @@ function renderSidebar() {
         const head = order.contract
             ? `<div style="color:#d2991d;font-weight:600;font-size:0.62em;">🏢 КОНТРАКТ · ${order.companyName}</div><div style="font-size:0.58em;color:#f78166;">⏳ срок ${order.deadline}с</div>`
             : '';
-        div.innerHTML = `${head}<div class="truck-icon">${order.truckType.icon}${order.dented?' 🚧':''}</div><div style="font-size:0.7em;">${worksList}</div><div class="reward">💰${order.money}</div><div style="font-size:0.6em;color:#8b949e;">⏱~${estimatedSeconds(order)}с | ${order.truckType.name}</div>`;
+        div.innerHTML = `${head}<div class="truck-icon">${order.truckType.icon}${order.dented?' 🚧':''}</div><div style="font-size:0.7em;">${worksList}</div><div class="reward">💰${order.money}</div><div style="font-size:0.6em;color:#8b949e;">⏱${order.totalTime}с | ${order.truckType.name}</div>`;
         div.onclick = () => { if (freeBay) assignOrderToBay(order.id, freeBay.id); };
         div.style.cursor = freeBay ? 'pointer' : 'not-allowed';
         div.style.opacity = freeBay ? '1' : '0.5';
@@ -3318,7 +3161,6 @@ function expandGarage() {
     scene.add(pb);
     const bay = { id: newId, order: null, mesh: bayGroup, progressBar: pb };
     game.bays.push(bay);
-    buildBayConnector(pos.x); // подъездная дорога от нового бокса к коллектору
     ensureBayEquipment(bay); // в новом боксе сразу появляется купленный инструмент
     toast('📦 Новый бокс открыт!', '#3fb950');
     checkAchievements();
@@ -3401,13 +3243,11 @@ function gameLoop(delta) {
         const cs = currentSegment(order);
         const curWork = cs.seg.work;
         const mech = getBestMechanicFor(curWork);
-        // скорость бокса определяет ЛУЧШИЙ назначенный механик (прокачка реально ускоряет)
-        const baySpeed = mech.speed;
         let bonus = mech.specialty === curWork.category ? 1.3 : 1.0;
         bonus *= getToolBonus(curWork);
         if (game.isNight) bonus *= 1.3;
         bonus *= weatherMult;
-        bonus *= 1 + 0.4 * ((bay.assignedMechCount || 1) - 1); // +40% за каждого доп. работника
+        bonus *= 1 + 0.25 * ((bay.assignedMechCount || 1) - 1); // больше работников в боксе — быстрее
         // если боксу не досталось рук — пробуем доукомплектовать, иначе ждём (прогресс стоит)
         if ((bay.assignedMechCount || 0) === 0 && cs.seg.kind !== 'parts') {
             staffBay(bay);
@@ -3426,21 +3266,44 @@ function gameLoop(delta) {
             }
         }
         // этап «заказ запчастей» идёт с фиксированной скоростью (ждём поставку), не зависит от рук
-        const segSpeed = cs.seg.kind === 'parts' ? 1.0 : baySpeed * bonus;
+        const segSpeed = cs.seg.kind === 'parts' ? 1.0 : speed * bonus;
         if (!wasteIsFull()) order.progress += segSpeed * delta * GAME_SPEED; // при полном кубе ремонт стоит
         // скрытый дефект — по завершении диагностики
         if (cs.seg.kind !== 'diagnose' && !order.diagChecked) checkHiddenDefect(order);
         // режиссура: ставим машину и реквизит по текущей операции
         applyChoreography(bay, nowMs);
-        // анимация механиков — машут инструментом (позы и позиции задаёт choreography)
+        // анимация механиков — движения зависят от инструмента/специальности
         if (bay.mechs) {
+            const t = nowMs;
             for (const f of bay.mechs) {
                 if (!f.visible) continue;
                 const ph = (f.userData.phase || 0);
                 const arm = f.getObjectByName('arm');
-                if (arm) arm.rotation.x = Math.sin(nowMs * 0.014 + ph) * 1.0 - 0.3;
                 const tool = f.getObjectByName('tool');
-                if (tool) tool.rotation.x = Math.sin(nowMs * 0.014 + ph) * 0.8;
+                const kind = f.userData.toolKind || 'wrench';
+                let armAng = 0, toolAng = 0, bob = 0;
+                switch (kind) {
+                    case 'hammer': // кузовщик — резкие удары молотком
+                        { const beat = Math.max(0, Math.sin(t * 0.02 + ph)); armAng = -beat * 1.4; toolAng = -beat * 0.6; bob = beat * 0.03; }
+                        break;
+                    case 'multimeter': // электрик — медленные точные тычки щупом
+                        { const probe = Math.sin(t * 0.006 + ph); armAng = -0.4 + probe * 0.25; toolAng = probe * 0.15; }
+                        break;
+                    case 'sprayer': // маляр — плавные размашистые движения
+                        { armAng = -0.3 + Math.sin(t * 0.009 + ph) * 0.7; toolAng = Math.sin(t * 0.009 + ph) * 0.3; }
+                        break;
+                    case 'scanner': // диагност — почти неподвижен, смотрит в прибор
+                        { armAng = -0.5 + Math.sin(t * 0.003 + ph) * 0.08; toolAng = 0; }
+                        break;
+                    case 'stethoscope': // моторист — слушает/подкручивает, средний темп
+                        { armAng = -0.3 + Math.sin(t * 0.01 + ph) * 0.5; toolAng = Math.sin(t * 0.01 + ph) * 0.3; }
+                        break;
+                    default: // wrench — слесарь крутит ключом (круговое усилие рывками)
+                        { const turn = Math.sin(t * 0.013 + ph); armAng = turn * 1.0 - 0.3; toolAng = turn * 0.8; }
+                }
+                if (arm) arm.rotation.x = armAng;
+                if (tool) tool.rotation.x = toolAng;
+                if (bob) f.position.y = (f.userData.baseY || 0) + bob;
             }
         }
         if (bay.progressBar && bay.progressBar.visible) {
@@ -3458,12 +3321,37 @@ function gameLoop(delta) {
     }
 
     // Анимация отдыхающих в курилке (лёгкое «дыхание», иногда поворот головы)
-    for (const f of idleFigures) {
-        if (!f.visible) continue;
+    // Живая курилка: лёгкое дыхание + беседы (облачка) + рукопожатия парами
+    const visIdle = idleFigures.filter(f => f.visible);
+    for (const f of visIdle) {
         const ph = f.userData.phase || 0;
         const baseY = f.userData.sit ? 0.25 : 0;
         f.position.y = baseY + Math.sin(nowMs * 0.002 + ph) * 0.015;
-        f.rotation.y = Math.sin(nowMs * 0.0006 + ph) * 0.25; // лениво вертят головой
+        f.rotation.y = Math.sin(nowMs * 0.0006 + ph) * 0.2;
+        if (f.userData.bubble) f.userData.bubble.visible = false; // по умолчанию выкл
+        // сброс «жеста» руки
+        const arm = f.getObjectByName('arm'); if (arm) arm.rotation.x = 0;
+    }
+    // разбиваем на пары соседей и иногда устраиваем беседу/рукопожатие
+    for (let i = 0; i + 1 < visIdle.length; i += 2) {
+        const a = visIdle[i], b = visIdle[i + 1];
+        // цикл взаимодействия ~ 8 сек, со сдвигом по паре
+        const cyc = (nowMs * 0.001 + i * 1.7) % 8;
+        if (cyc < 3) {
+            // БЕСЕДА: оба чуть повернулись друг к другу, над головами облачка по очереди
+            const dir = Math.sign((b.position.x - a.position.x) || 1);
+            a.rotation.y = dir * 0.5; b.rotation.y = -dir * 0.5;
+            if (a.userData.bubble) { a.userData.bubble.visible = (cyc % 1.4) < 0.7; a.userData.bubble.rotation.y = -a.rotation.y; }
+            if (b.userData.bubble) { b.userData.bubble.visible = (cyc % 1.4) >= 0.7; b.userData.bubble.rotation.y = -b.rotation.y; }
+        } else if (cyc > 5 && cyc < 6.2 && !a.userData.sit && !b.userData.sit) {
+            // РУКОПОЖАТИЕ: стоящие тянут руки навстречу
+            const dir = Math.sign((b.position.x - a.position.x) || 1);
+            a.rotation.y = dir * 0.7; b.rotation.y = -dir * 0.7;
+            const sh = Math.sin((cyc - 5) / 1.2 * Math.PI); // 0→1→0
+            const armA = a.getObjectByName('arm'), armB = b.getObjectByName('arm');
+            if (armA) armA.rotation.x = -1.2 * sh;
+            if (armB) armB.rotation.x = -1.2 * sh;
+        }
     }
 
     // Шнырь патрулирует территорию
@@ -3519,13 +3407,10 @@ function gameLoop(delta) {
 
 // ==================== КОНЕЦ ДНЯ / ЭКОНОМИКА ====================
 function endOfDay() {
-    // аренда растёт с уровнем сервиса И с репутацией (большой сервис дороже содержать)
-    const rent = 120 * game.garageLevel + Math.floor(game.reputation * 2.5) + game.bays.length * 60;
+    const rent = 80 * game.garageLevel;
     let salaries = 0;
-    for (const m of game.mechanics) salaries += 55 * m.level; // платим всем, включая основного
-    // налог с оборота: чем крупнее доход за день, тем выше отчисления
-    const tax = Math.floor(game.moneyEarnedToday * (0.06 + 0.02 * game.garageLevel));
-    const total = rent + salaries + tax;
+    for (const m of game.mechanics) if (m.id !== 0) salaries += 40 * m.level;
+    const total = rent + salaries;
     game.money -= total;
 
     if (game.moneyEarnedToday > game.recordMoneyDay) game.recordMoneyDay = game.moneyEarnedToday;
@@ -3644,7 +3529,7 @@ function serializeOrder(o) {
              mainWork: o.mainWork.name, extraWork: o.extraWork ? o.extraWork.name : null,
              money: o.money, totalTime: o.totalTime, progress: o.progress, truckType: o.truckType.name,
              paintColor: o.paintColor, dented: o.dented, crashed: o.crashed,
-             contract: o.contract, companyName: o.companyName, penalty: o.penalty, deadline: o.deadline, deadlineLeft: o.deadlineLeft, diagChecked: o.diagChecked, foremanJudged: o.foremanJudged };
+             contract: o.contract, companyName: o.companyName, penalty: o.penalty, deadline: o.deadline, deadlineLeft: o.deadlineLeft, diagChecked: o.diagChecked };
 }
 function deserializeOrder(s) {
     const works = (s.works && s.works.length) ? s.works.map(n => findWork(n)).filter(Boolean) : null;
@@ -3661,7 +3546,6 @@ function deserializeOrder(s) {
         contract: !!s.contract, companyName: s.companyName || null, penalty: s.penalty || 0,
         deadline: s.deadline || null, deadlineLeft: s.deadlineLeft != null ? s.deadlineLeft : null,
         diagChecked: !!s.diagChecked,
-        foremanJudged: !!s.foremanJudged,
     };
 }
 
@@ -3728,7 +3612,6 @@ function loadGame() {
                 scene.add(g);
                 const pb = createProgressBar(); pb.position.copy(g.position); scene.add(pb);
                 game.bays.push({ id: i, order: null, mesh: g, progressBar: pb });
-                buildBayConnector(pos.x);
             }
         }
         refreshAllBayEquipment(); // восстановить купленный инструмент в боксах
@@ -3739,7 +3622,7 @@ function loadGame() {
             const slot = queueSlot(game.orders.length);
             truck.position.set(slot.x, 0, slot.z);
             truck.rotation.y = -Math.PI / 2; // нос влево, вдоль боковой дороги
-            applyTruckScale(truck);
+            truck.scale.setScalar(QUEUE_SCALE);
             scene.add(truck);
             order.truckMesh = truck;
             order.smokeSystem = createSmokeEffect(new THREE.Vector3(slot.x, 0.7, slot.z));
@@ -3843,7 +3726,6 @@ function animate() {
 const hadSave = loadGame();
 if (!hadSave) { addNewOrder(); addNewOrder(); }
 soundBtn.textContent = game.soundOn ? '🔊 Звук: вкл' : '🔇 Звук: выкл';
-const _verEl = document.getElementById('versionLabel'); if (_verEl) _verEl.textContent = GAME_VERSION;
 updateUI();
 // Первый запуск — показываем обучение (один раз)
 if (!localStorage.getItem('slesarTutorialSeen')) {
